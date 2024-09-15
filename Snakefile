@@ -2,9 +2,7 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-import sys
-sys.path.append("./scripts")
-from _helpers import RESULTS_DIR
+RESULTS_DIR = "results/"
 
 
 configfile: "configs/config.yaml"
