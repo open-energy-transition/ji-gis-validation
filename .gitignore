@@ -2,3 +2,4 @@ notebooks/.ipynb_checkpoints
 pypsa_data
 results
 scripts/__pycache__
+.snakemake
