@@ -12,9 +12,12 @@ import pycountry
 import logging
 import warnings
 warnings.filterwarnings("ignore")
-from _helpers import create_folder, get_solved_network_path, get_base_network_path, \
-                     load_network, get_country_name, get_country_list, \
+from _helpers import mock_snakemake, update_config_from_wildcards, create_folder, \
+                     load_network, get_base_network_path, get_solved_network_path, \
+                     get_country_name, get_country_list, \
                      DATA_DIR, PYPSA_RESULTS_DIR, PYPSA_NETWORKS_DIR, RESULTS_DIR
+
+logger = logging.getLogger(__name__)
 
 
 def get_total_demand(n):
@@ -80,7 +83,7 @@ def get_historic_demand(country_code, horizon):
     if country_code3 and country_code3 in eia_data.code_3.unique():
         demand = float(eia_data.query("code_3 == @country_code3")[str(horizon)].values[0])
     elif country_name and country_name in eia_data.country.unique():
-        demand = flaot(eia_data.query("country == @country_name")[str(horizon)].values[0])
+        demand = float(eia_data.query("country == @country_name")[str(horizon)].values[0])
     else:
         demand = None
     return demand
@@ -283,59 +286,68 @@ def compare_network_lines(network_length, network_voltages, real_length, real_vo
 
 
 if __name__ == "__main__":
+    if "snakemake" not in globals():
+        snakemake = mock_snakemake(
+            "validate", 
+            countries="US",
+            planning_horizon="2021",
+        )
+    # update config based on wildcards
+    config = update_config_from_wildcards(snakemake.config, snakemake.wildcards)
+
+
     # create results folder
     create_folder(RESULTS_DIR)
 
-    # get list of countries
-    country_code_list = get_country_list(PYPSA_RESULTS_DIR)
+    # country code 
+    country_code = config["validation"]["countries"]
 
-    # list of horizons
-    horizons = [2021]
+    # validation horizon
+    horizon = config["validation"]["planning_horizon"]
 
-    for horizon in horizons:
-        for country_code in country_code_list:
-            with pd.ExcelWriter(RESULTS_DIR+f'validation_{country_code}_{horizon}.xlsx', engine='xlsxwriter') as writer:
-                # get filepath of the network
-                filepath = get_solved_network_path(country_code, horizon, PYPSA_RESULTS_DIR)
-                # get filepath to base network
-                base_filepath = get_base_network_path(country_code, horizon, PYPSA_NETWORKS_DIR)
-                
-                # load the network
-                n = load_network(filepath)
-                # load base network
-                n_base = load_network(base_filepath)
+    # perform valdiation
+    with pd.ExcelWriter(snakemake.output.table, engine='xlsxwriter') as writer:
+        # get filepath of the network
+        filepath = get_solved_network_path(country_code, horizon, PYPSA_RESULTS_DIR)
+        # get filepath to base network
+        base_filepath = get_base_network_path(country_code, horizon, PYPSA_NETWORKS_DIR)
         
-                # get total electricity demand
-                demand = get_total_demand(n)
-        
-                # get optimal generation capacities
-                generation_capacities = get_installed_capacities(n)
-        
-                # get generation mix
-                generation_mix = get_generation_mix(n)
+        # load the network
+        n = load_network(filepath)
+        # load base network
+        n_base = load_network(base_filepath)
 
-                # get network length and voltage ratings
-                network_length, network_voltages = get_network_length(n_base)
-        
-                # get historic electricity consumption of the country
-                historic_demand = get_historic_demand(country_code, horizon)
-        
-                # get historic generation capacities of the country
-                historic_capacities = get_historic_capacities(country_code, horizon)
-        
-                # get historic generation mix of the country
-                historic_generation = get_historic_generation(country_code, horizon)
+        # get total electricity demand
+        demand = get_total_demand(n)
 
-                # get real network length and voltages
-                real_length, real_voltages = real_network_length(country_code)
-        
-                # compare the data
-                demand_comparison = compare_demands(demand, historic_demand)
-                capacity_comparison = compare_capacities(generation_capacities, historic_capacities)
-                generation_comparison = compare_generation(generation_mix, historic_generation)
-                network_comparison = compare_network_lines(network_length, network_voltages, real_length, real_voltages)
+        # get optimal generation capacities
+        generation_capacities = get_installed_capacities(n)
 
-                demand_comparison.to_excel(writer, sheet_name=country_code, startrow=0, startcol=0)
-                capacity_comparison.to_excel(writer, sheet_name=country_code, startrow=3, startcol=0)
-                generation_comparison.to_excel(writer, sheet_name=country_code, startrow=0, startcol=5)
-                network_comparison.to_excel(writer, sheet_name=country_code, startrow=0, startcol=10)
+        # get generation mix
+        generation_mix = get_generation_mix(n)
+
+        # get network length and voltage ratings
+        network_length, network_voltages = get_network_length(n_base)
+
+        # get historic electricity consumption of the country
+        historic_demand = get_historic_demand(country_code, horizon)
+
+        # get historic generation capacities of the country
+        historic_capacities = get_historic_capacities(country_code, horizon)
+
+        # get historic generation mix of the country
+        historic_generation = get_historic_generation(country_code, horizon)
+
+        # get real network length and voltages
+        real_length, real_voltages = real_network_length(country_code)
+
+        # compare the data
+        demand_comparison = compare_demands(demand, historic_demand)
+        capacity_comparison = compare_capacities(generation_capacities, historic_capacities)
+        generation_comparison = compare_generation(generation_mix, historic_generation)
+        network_comparison = compare_network_lines(network_length, network_voltages, real_length, real_voltages)
+
+        demand_comparison.to_excel(writer, sheet_name=country_code, startrow=0, startcol=0)
+        capacity_comparison.to_excel(writer, sheet_name=country_code, startrow=3, startcol=0)
+        generation_comparison.to_excel(writer, sheet_name=country_code, startrow=0, startcol=5)
+        network_comparison.to_excel(writer, sheet_name=country_code, startrow=0, startcol=10)
