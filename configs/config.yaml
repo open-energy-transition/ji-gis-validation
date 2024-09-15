@@ -1,0 +1,7 @@
+# SPDX-FileCopyrightText:  Open Energy Transition gGmbH
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+validation:
+  countries: ["AU", "BR", "CN", "CO"]
+  planning_horizon: [2021]
