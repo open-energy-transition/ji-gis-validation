@@ -3,5 +3,5 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 validation:
-  countries: ["AU", "BR", "CN", "CO"]
+  countries: ["AU", "BR", "CN", "CO", "DE", "IN", "IT", "MX", "NG", "US", "ZA"]
   planning_horizon: [2021]
