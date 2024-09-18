@@ -246,15 +246,15 @@ def compare_generation(network_generation, historic_generation):
     historic_generation = historic_generation.loc[["Nuclear", "Coal", "Natural gas", "Oil", "Hydro", "PHS", "Solar", "Wind", "Biomass", "Geothermal", "Load shedding", "Total generation"], :]
     
     # bring generation from the network into format
-    all_carriers = ["nuclear", "coal", "lignite", "CCGT", "OCGT", "hydro", "ror", "PHS", "solar", "offwind-ac", "offwind-dc", "onwind", "biomass", "geothermal", "load"]
+    all_carriers = ["nuclear", "coal", "lignite", "CCGT", "OCGT", "oil", "hydro", "ror", "PHS", "solar", "offwind-ac", "offwind-dc", "onwind", "biomass", "geothermal", "load"]
     network_generation = network_generation.reindex(all_carriers, fill_value=0)
-    network_generation.rename(index={"nuclear":"Nuclear", "solar":"Solar", "biomass":"Biomass", "geothermal":"Geothermal", "load":"Load shedding"}, inplace=True)
+    network_generation.rename(index={"nuclear":"Nuclear", "oil":"Oil", "solar":"Solar", "biomass":"Biomass", "geothermal":"Geothermal", "load":"Load shedding"}, inplace=True)
     network_generation["Coal"] = network_generation[["coal", "lignite"]].sum()
     network_generation["Natural gas"] = network_generation[["CCGT", "OCGT"]].sum()
     network_generation["Hydro"] = network_generation[["hydro", "ror"]].sum()
     network_generation["Wind"] = network_generation[["offwind-ac", "offwind-dc", "onwind"]].sum()
     network_generation["Load shedding"] /= 1e3
-    network_generation = network_generation.loc[["Nuclear", "Coal", "Natural gas", "Hydro", "PHS", "Solar", "Wind", "Biomass", "Geothermal", "Load shedding"]]
+    network_generation = network_generation.loc[["Nuclear", "Coal", "Natural gas", "Oil", "Hydro", "PHS", "Solar", "Wind", "Biomass", "Geothermal", "Load shedding"]]
     network_generation["Total generation"] = network_generation.sum()
     network_generation.name = "PyPSA Model"
     network_generation = network_generation.to_frame()
