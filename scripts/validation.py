@@ -187,17 +187,17 @@ def compare_capacities(network_capacities, historic_capacities):
                                       "Biomass and waste":"Biomass", 
                                       "Hydroelectric pumped storage":"PHS"}, inplace=True)
     historic_capacities.drop(index=["Renewables", "Non-hydroelectric renewables", 
-                                    "Geothermal", "Solar, tide, wave, fuel cell", "Tide and wave"], inplace=True)
-    historic_capacities = historic_capacities.loc[["Nuclear", "Fossil fuels", "Hydro", "PHS", "Solar", "Wind", "Biomass", "Total capacity"], :]
+                                    "Solar, tide, wave, fuel cell", "Tide and wave"], inplace=True)
+    historic_capacities = historic_capacities.loc[["Nuclear", "Fossil fuels", "Hydro", "PHS", "Solar", "Wind", "Biomass", "Geothermal", "Total capacity"], :]
     
     # bring capacities from the network into format
-    all_carriers = ["nuclear", "coal", "lignite", "CCGT", "OCGT", "hydro", "ror", "PHS", "solar", "offwind-ac", "offwind-dc", "onwind", "biomass"]
+    all_carriers = ["nuclear", "coal", "lignite", "CCGT", "OCGT", "hydro", "ror", "PHS", "solar", "offwind-ac", "offwind-dc", "onwind", "biomass", "geothermal"]
     network_capacities = network_capacities.reindex(all_carriers, fill_value=0)
-    network_capacities.rename(index={"nuclear":"Nuclear", "solar":"Solar", "biomass":"Biomass"}, inplace=True)
+    network_capacities.rename(index={"nuclear":"Nuclear", "solar":"Solar", "biomass":"Biomass", "geothermal":"Geothermal"}, inplace=True)
     network_capacities["Fossil fuels"] = network_capacities[["coal", "lignite", "CCGT", "OCGT"]].sum()
     network_capacities["Hydro"] = network_capacities[["hydro", "ror"]].sum()
     network_capacities["Wind"] = network_capacities[["offwind-ac", "offwind-dc", "onwind"]].sum()
-    network_capacities = network_capacities.loc[["Nuclear", "Fossil fuels", "Hydro", "PHS", "Solar", "Wind", "Biomass"]]
+    network_capacities = network_capacities.loc[["Nuclear", "Fossil fuels", "Hydro", "PHS", "Solar", "Wind", "Biomass", "Geothermal"]]
     network_capacities["Total capacity"] = network_capacities.sum()
     network_capacities.name = "PyPSA Model"
     network_capacities = network_capacities.to_frame()
@@ -240,21 +240,21 @@ def compare_generation(network_generation, historic_generation):
                                       "Biomass and waste":"Biomass", 
                                       "Hydroelectric pumped storage":"PHS"}, inplace=True)
     historic_generation.drop(index=["Fossil fuels", "Renewables", "Non-hydroelectric renewables", 
-                                    "Geothermal", "Solar, tide, wave, fuel cell", "Tide and wave"], inplace=True)
+                                    "Solar, tide, wave, fuel cell", "Tide and wave"], inplace=True)
     historic_generation.loc["Load shedding"] = None
     historic_generation.loc["Natural gas"] = historic_generation.loc[["Natural gas", "Other gases"]].sum()
-    historic_generation = historic_generation.loc[["Nuclear", "Coal", "Natural gas", "Oil", "Hydro", "PHS", "Solar", "Wind", "Biomass", "Load shedding", "Total generation"], :]
+    historic_generation = historic_generation.loc[["Nuclear", "Coal", "Natural gas", "Oil", "Hydro", "PHS", "Solar", "Wind", "Biomass", "Geothermal", "Load shedding", "Total generation"], :]
     
     # bring generation from the network into format
-    all_carriers = ["nuclear", "coal", "lignite", "CCGT", "OCGT", "hydro", "ror", "PHS", "solar", "offwind-ac", "offwind-dc", "onwind", "biomass", "load"]
+    all_carriers = ["nuclear", "coal", "lignite", "CCGT", "OCGT", "hydro", "ror", "PHS", "solar", "offwind-ac", "offwind-dc", "onwind", "biomass", "geothermal", "load"]
     network_generation = network_generation.reindex(all_carriers, fill_value=0)
-    network_generation.rename(index={"nuclear":"Nuclear", "solar":"Solar", "biomass":"Biomass", "load":"Load shedding"}, inplace=True)
+    network_generation.rename(index={"nuclear":"Nuclear", "solar":"Solar", "biomass":"Biomass", "geothermal":"Geothermal", "load":"Load shedding"}, inplace=True)
     network_generation["Coal"] = network_generation[["coal", "lignite"]].sum()
     network_generation["Natural gas"] = network_generation[["CCGT", "OCGT"]].sum()
     network_generation["Hydro"] = network_generation[["hydro", "ror"]].sum()
     network_generation["Wind"] = network_generation[["offwind-ac", "offwind-dc", "onwind"]].sum()
     network_generation["Load shedding"] /= 1e3
-    network_generation = network_generation.loc[["Nuclear", "Coal", "Natural gas", "Hydro", "PHS", "Solar", "Wind", "Biomass", "Load shedding"]]
+    network_generation = network_generation.loc[["Nuclear", "Coal", "Natural gas", "Hydro", "PHS", "Solar", "Wind", "Biomass", "Geothermal", "Load shedding"]]
     network_generation["Total generation"] = network_generation.sum()
     network_generation.name = "PyPSA Model"
     network_generation = network_generation.to_frame()
@@ -263,7 +263,7 @@ def compare_generation(network_generation, historic_generation):
     generation = pd.concat([network_generation, historic_generation], axis=1).astype(float)
     generation["Error (%)"] = (100*(generation["PyPSA Model"] - generation["EIA Data"])/generation["EIA Data"]).astype(float).round(2)
     generation.fillna(0, inplace=True)
-    generation = generation.loc[["Nuclear", "Coal", "Natural gas", "Oil", "Hydro", "PHS", "Solar", "Wind", "Biomass", "Load shedding", "Total generation"], :].round(2)
+    generation = generation.loc[["Nuclear", "Coal", "Natural gas", "Oil", "Hydro", "PHS", "Solar", "Wind", "Biomass", "Geothermal", "Load shedding", "Total generation"], :].round(2)
     return generation
 
 
