@@ -5,4 +5,3 @@
 validation:
   countries: ["AU", "BR", "CN", "CO", "DE", "IN", "IT", "MX", "NG", "US", "ZA"]
   planning_horizon: [2021]
-  clusters: [10]
