@@ -499,7 +499,7 @@ def get_generation_capacity_ember_detail(data, three_country_code, horizon):
     return generation_ember
 
 
-def plot_capacity_validation(installed_capacity_df, horizon, country_code, clusters):
+def plot_capacity_validation(installed_capacity_df, horizon, country_code):
     ax = installed_capacity_df.plot(kind="bar", figsize=(12, 7), width=0.8)
     plt.title(
         f"Comparison of Installed Capacity: EMBER vs PyPSA vs EIA, {horizon}", fontsize=16)
@@ -513,7 +513,7 @@ def plot_capacity_validation(installed_capacity_df, horizon, country_code, clust
         f"{PLOTS_DIR}/capacity_validation_{country_code}_{horizon}.png")
 
 
-def plot_demand_validation(demand_ember, pypsa_demand, EIA_demand, country_code, horizon, clusters):
+def plot_demand_validation(demand_ember, pypsa_demand, EIA_demand, country_code, horizon):
     plt.figure(figsize=(8, 6))  # Set figure size
     bars = plt.bar(["Ember", "PyPSA", "EIA"], [
                    demand_ember, pypsa_demand, EIA_demand], color=['#1f77b4', '#ff7f0e', '#2ca02c'])
@@ -530,7 +530,7 @@ def plot_demand_validation(demand_ember, pypsa_demand, EIA_demand, country_code,
         f"{PLOTS_DIR}/demand_validation_{country_code}_{horizon}.png")
 
 
-def plot_generation_validation(generation_df, horizon, country_code, clusters):
+def plot_generation_validation(generation_df, horizon, country_code):
     ax = generation_df.plot(kind="bar", figsize=(12, 7), width=0.8)
     plt.title(
         f"Comparison of Generation: EMBER vs PyPSA vs EIA, {horizon}", fontsize=16)
@@ -544,7 +544,7 @@ def plot_generation_validation(generation_df, horizon, country_code, clusters):
         f"{PLOTS_DIR}/generation_validation_{country_code}_{horizon}.png")
 
 
-def plot_detail_generation_validation(generation_df_, horizon, country_code, clusters):
+def plot_detail_generation_validation(generation_df_, horizon, country_code):
     ax = generation_df_.plot(kind="bar", figsize=(12, 7), width=0.8)
     plt.title(
         f"Comparison of Generation: EMBER vs PyPSA vs EIA, {horizon}", fontsize=16)
