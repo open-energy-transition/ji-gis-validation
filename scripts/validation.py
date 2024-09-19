@@ -63,7 +63,7 @@ def get_generation_mix(n):
     return generation_mix.round(4)
 
 
-def get_historic_demand(country_code, horizon):
+def get_eia_historic_demand(country_code, horizon):
     """ Input:
             country_code - two letter code of the country
         Output:
@@ -89,7 +89,7 @@ def get_historic_demand(country_code, horizon):
     return demand
 
 
-def get_historic_capacities(country_code, horizon):
+def get_eia_historic_capacities(country_code, horizon):
     """ Input:
             country_code - two letter code of the country
         Output:
@@ -115,7 +115,7 @@ def get_historic_capacities(country_code, horizon):
     return capacities
 
 
-def get_historic_generation(country_code, horizon):
+def get_eia_historic_generation(country_code, horizon):
     """ Input:
             country_code - two letter code of the country
         Output:
@@ -139,6 +139,111 @@ def get_historic_generation(country_code, horizon):
     else:
         generation = None
     return generation
+
+
+def load_ember_data():
+    """
+    Output:
+        ember_data - Ember data in pd.DataFrame format.
+    """
+    ember_data_path = os.path.join(os.getcwd(), DATA_DIR + "ember_yearly_full_release_long_format.csv")
+    ember_data = pd.read_csv(ember_data_path)
+    return ember_data
+
+
+def get_ember_historic_demand(country_code, horizon):
+    """ Input:
+            country_code - two letter code of the country
+            horizon -  year of interest
+        Output:
+            demand - electricity demand in TWh
+    """
+    # load Ember data
+    data = load_ember_data()
+    # get the name of the country and three letter code
+    _, country_code3 = get_country_name(country_code)
+    
+    demand = data[(data["Year"] == int(horizon))
+                  & (data["Country code"] == country_code3) 
+                  & (data["Category"] == "Electricity demand") 
+                  & (data["Subcategory"] == "Demand")]["Value"]
+
+    if len(demand) != 0:
+        return demand.iloc[0]
+    return None
+
+
+def get_ember_historic_capacities(country_code, horizon):
+    """ Input:
+            country_code - two letter code of the country
+            horizon - year of interest
+        Output:
+            capacity_ember - installed capacity based on Ember dataset in GW
+    """
+    # Load Ember data
+    data = load_ember_data()
+    # get the name of the country and three letter code
+    _, country_code3 = get_country_name(country_code)
+    
+    capacity_ember = data[
+        (data["Country code"] == country_code3) 
+        & (data["Year"] == int(horizon))
+        & (data["Category"] == "Capacity") 
+        & (data["Subcategory"] == "Fuel")][["Variable", "Value"]].reset_index(drop=True)
+    
+    # Drop irrelevant rows
+    drop_row = ["Other Renewables"]
+    capacity_ember = capacity_ember[~capacity_ember["Variable"].isin(drop_row)]
+
+    # Standardize fuel types
+    capacity_ember = capacity_ember.replace({
+        "Gas": "Fossil fuels", 
+        "Bioenergy": "Biomass", 
+        "Coal": "Fossil fuels",
+        "Other Fossil": "Fossil fuels"})
+    
+    capacity_ember = capacity_ember.groupby("Variable").sum()
+    capacity_ember.columns = ["Ember data"]
+
+    return capacity_ember
+
+
+def get_ember_historic_generation(country_code, horizon):
+    """ Input:
+            country_code - two letter code of the country
+            horizon - year of interest
+        Output:
+            generation_ember - electricity generation mix based on Ember dataset in TWh
+    """
+    # Load Ember data
+    data = load_ember_data()
+    # get the name of the country and three letter code
+    _, country_code3 = get_country_name(country_code)
+    
+    generation_ember = data[
+        (data["Category"] == "Electricity generation")
+        & (data["Country code"] == country_code3)
+        & (data["Year"] == int(horizon))
+        & (data["Subcategory"] == "Fuel")
+        & (data["Unit"] == "TWh")
+            ][["Variable", "Value"]].reset_index(drop=True)
+
+    # Drop irrelevant rows
+    drop_row = ["Other Renewables"]
+    generation_ember = generation_ember[~generation_ember["Variable"].isin(drop_row)]
+
+    # Standardize fuel types
+    generation_ember = generation_ember.replace({
+        "Gas": "Natural gas", 
+        "Bioenergy": "Biomass", 
+        "Other Fossil": "Oil"})
+    
+    # Group by fuel type
+    generation_ember = generation_ember.groupby("Variable").sum()
+    generation_ember.loc["Load shedding"] = 0.0
+    generation_ember.columns = ["Ember data"]
+
+    return generation_ember
 
 
 def get_network_length(n_base):
@@ -171,25 +276,30 @@ def real_network_length(country_code):
     return line_length[country_code], voltage_ratings[country_code]
 
     
-def compare_capacities(network_capacities, historic_capacities):
+def compare_capacities(network_capacities, eia_historic_capacities, ember_historic_capacities):
     """ Input:
             network_capacities - capacities obtained from the network in GW
-            historic_capacities - capacities obtained from EIA in GW
+            eia_historic_capacities - capacities obtained from EIA in GW
+            ember_historic_capacities - capacities obtained from Ember in GW
         Output:
             capacities - DataFrame comparing two data
     """
-    # bring historic data into format
-    historic_capacities["country"] = historic_capacities.country.str.replace("(million kW)","").str.strip()
-    historic_capacities.set_index("country", inplace=True)
-    historic_capacities.columns = ["EIA Data"]
-    historic_capacities.rename(index={"Capacity":"Total capacity", 
-                                      "Hydroelectricity":"Hydro", 
-                                      "Biomass and waste":"Biomass", 
-                                      "Hydroelectric pumped storage":"PHS"}, inplace=True)
-    historic_capacities.drop(index=["Renewables", "Non-hydroelectric renewables", 
-                                    "Solar, tide, wave, fuel cell", "Tide and wave"], inplace=True)
-    historic_capacities = historic_capacities.loc[["Nuclear", "Fossil fuels", "Hydro", "PHS", "Solar", "Wind", "Biomass", "Geothermal", "Total capacity"], :]
+    # bring EIA historic data into format
+    eia_historic_capacities["country"] = eia_historic_capacities.country.str.replace("(million kW)","").str.strip()
+    eia_historic_capacities.set_index("country", inplace=True)
+    eia_historic_capacities.columns = ["EIA"]
+    eia_historic_capacities.rename(index={"Capacity":"Total capacity", 
+                                         "Hydroelectricity":"Hydro", 
+                                         "Biomass and waste":"Biomass", 
+                                         "Hydroelectric pumped storage":"PHS"}, inplace=True)
+    eia_historic_capacities.drop(index=["Renewables", "Non-hydroelectric renewables", 
+                                        "Solar, tide, wave, fuel cell", "Tide and wave"], inplace=True)
+    eia_historic_capacities = eia_historic_capacities.loc[["Nuclear", "Fossil fuels", "Hydro", "PHS", "Solar", "Wind", "Biomass", "Geothermal", "Total capacity"], :]
     
+    # bring Ember historic data into format
+    ember_historic_capacities.columns = ["Ember"]
+    ember_historic_capacities.loc["Total capacity", :] = ember_historic_capacities.sum()
+
     # bring capacities from the network into format
     all_carriers = ["nuclear", "coal", "lignite", "CCGT", "OCGT", "hydro", "ror", "PHS", "solar", "offwind-ac", "offwind-dc", "onwind", "biomass", "geothermal"]
     network_capacities = network_capacities.reindex(all_carriers, fill_value=0)
@@ -203,48 +313,56 @@ def compare_capacities(network_capacities, historic_capacities):
     network_capacities = network_capacities.to_frame()
 
     # merge two data
-    capacities = pd.concat([network_capacities, historic_capacities], axis=1).astype(float)
-    capacities["Error (%)"] = (100*(capacities["PyPSA Model"] - capacities["EIA Data"])/capacities["EIA Data"]).astype(float).round(2)
+    capacities = pd.concat([network_capacities, eia_historic_capacities, ember_historic_capacities], axis=1).astype(float)
+    capacities["Error wrt EIA (%)"] = (100*(capacities["PyPSA Model"] - capacities["EIA"])/capacities["EIA"]).astype(float).round(2)
+    capacities["Error wrt Ember (%)"] = (100*(capacities["PyPSA Model"] - capacities["Ember"])/capacities["Ember"]).astype(float).round(2)
     capacities.fillna(0, inplace=True)
     capacities.index.name = "Capacities [GW]"
     return capacities.round(2)
 
 
-def compare_demands(network_demand, historic_demand):
+def compare_demands(network_demand, eia_historic_demand, ember_historic_demand):
     """ Input:
             network_demand - demand obtained from the network in TWh
-            historic_demand - demand obtained from EIA in TWh
+            eia_historic_demand - demand obtained from EIA in TWh
+            ember_historic_demand - demand obtained from Ember in TWh
         Output:
             demand - DataFrame comparing two data
     """
-    demand = pd.DataFrame(columns=["PyPSA Model", "EIA Data"])
-    demand.loc["Electricity Demand [TWh]", ["PyPSA Model", "EIA Data"]] = [network_demand, historic_demand]
-    demand["Error (%)"] = (100*(demand["PyPSA Model"] - demand["EIA Data"])/demand["EIA Data"]).astype(float)
+    demand = pd.DataFrame(columns=["PyPSA Model", "EIA", "Ember"])
+    demand.loc["Electricity Demand [TWh]", ["PyPSA Model", "EIA", "Ember"]] = [network_demand, eia_historic_demand, ember_historic_demand]
+    demand["Error wrt EIA (%)"] = (100*(demand["PyPSA Model"] - demand["EIA"])/demand["EIA"]).astype(float)
+    demand["Error wrt Ember (%)"] = (100*(demand["PyPSA Model"] - demand["Ember"])/demand["Ember"]).astype(float)
     return demand.round(2)
 
 
-def compare_generation(network_generation, historic_generation):
+def compare_generation(network_generation, eia_historic_generation, ember_historic_generation):
     """ Input:
             network_generation - electricity generation obtained from the network in TWh
-            historic_generation - electricity generation obtained from EIA in TWh
+            eia_historic_generation - electricity generation obtained from EIA in TWh
+            ember_historic_generation - electricity generation obtained from EIA in TWh
         Output:
             generation - DataFrame comparing two data
     """
-    # bring historic data into format
-    historic_generation["country"] = historic_generation.country.str.replace("(billion kWh)","").str.strip()
-    historic_generation.set_index("country", inplace=True)
-    historic_generation.columns = ["EIA Data"]
-    historic_generation = historic_generation.astype(float)
-    historic_generation.rename(index={"Generation":"Total generation", 
-                                      "Hydroelectricity":"Hydro", 
-                                      "Biomass and waste":"Biomass", 
-                                      "Hydroelectric pumped storage":"PHS"}, inplace=True)
-    historic_generation.drop(index=["Fossil fuels", "Renewables", "Non-hydroelectric renewables", 
-                                    "Solar, tide, wave, fuel cell", "Tide and wave"], inplace=True)
-    historic_generation.loc["Load shedding"] = None
-    historic_generation.loc["Natural gas"] = historic_generation.loc[["Natural gas", "Other gases"]].sum()
-    historic_generation = historic_generation.loc[["Nuclear", "Coal", "Natural gas", "Oil", "Hydro", "PHS", "Solar", "Wind", "Biomass", "Geothermal", "Load shedding", "Total generation"], :]
+    # bring EIA historic data into format
+    eia_historic_generation["country"] = eia_historic_generation.country.str.replace("(billion kWh)","").str.strip()
+    eia_historic_generation.set_index("country", inplace=True)
+    eia_historic_generation.columns = ["EIA"]
+    eia_historic_generation = eia_historic_generation.astype(float)
+    eia_historic_generation.rename(index={"Generation":"Total generation", 
+                                          "Hydroelectricity":"Hydro", 
+                                          "Biomass and waste":"Biomass", 
+                                          "Hydroelectric pumped storage":"PHS"}, inplace=True)
+    eia_historic_generation.drop(index=["Fossil fuels", "Renewables", "Non-hydroelectric renewables", 
+                                        "Solar, tide, wave, fuel cell", "Tide and wave"], inplace=True)
+    eia_historic_generation.loc["Load shedding"] = None
+    eia_historic_generation.loc["Natural gas"] = eia_historic_generation.loc[["Natural gas", "Other gases"]].sum()
+    eia_historic_generation = eia_historic_generation.loc[["Nuclear", "Coal", "Natural gas", "Oil", "Hydro", "PHS", "Solar", "Wind", "Biomass", "Geothermal", "Load shedding", "Total generation"], :]
     
+    # bring Ember historic data into format
+    ember_historic_generation.columns = ["Ember"]
+    ember_historic_generation.loc["Total generation",:] = ember_historic_generation.sum()
+
     # bring generation from the network into format
     all_carriers = ["nuclear", "coal", "lignite", "CCGT", "OCGT", "oil", "hydro", "ror", "PHS", "solar", "offwind-ac", "offwind-dc", "onwind", "biomass", "geothermal", "load"]
     network_generation = network_generation.reindex(all_carriers, fill_value=0)
@@ -260,8 +378,9 @@ def compare_generation(network_generation, historic_generation):
     network_generation = network_generation.to_frame()
 
     # merge two data
-    generation = pd.concat([network_generation, historic_generation], axis=1).astype(float)
-    generation["Error (%)"] = (100*(generation["PyPSA Model"] - generation["EIA Data"])/generation["EIA Data"]).astype(float).round(2)
+    generation = pd.concat([network_generation, eia_historic_generation, ember_historic_generation], axis=1).astype(float)
+    generation["Error wrt EIA (%)"] = (100*(generation["PyPSA Model"] - generation["EIA"])/generation["EIA"]).astype(float).round(2)
+    generation["Error wrt Ember (%)"] = (100*(generation["PyPSA Model"] - generation["Ember"])/generation["Ember"]).astype(float).round(2)
     generation.fillna(0, inplace=True)
     generation = generation.loc[["Nuclear", "Coal", "Natural gas", "Oil", "Hydro", "PHS", "Solar", "Wind", "Biomass", "Geothermal", "Load shedding", "Total generation"], :].round(2)
     return generation
@@ -329,25 +448,31 @@ if __name__ == "__main__":
         # get network length and voltage ratings
         network_length, network_voltages = get_network_length(n_base)
 
-        # get historic electricity consumption of the country
-        historic_demand = get_historic_demand(country_code, horizon)
+        # get EIA historic electricity consumption of the country
+        eia_historic_demand = get_eia_historic_demand(country_code, horizon)
+        # get Ember historic electricity consumption of the country
+        ember_historic_demand = get_ember_historic_demand(country_code, horizon)
 
-        # get historic generation capacities of the country
-        historic_capacities = get_historic_capacities(country_code, horizon)
+        # get EIA historic generation capacities of the country
+        eia_historic_capacities = get_eia_historic_capacities(country_code, horizon)
+        # get Ember historic generation capacities of the country
+        ember_historic_capacities = get_ember_historic_capacities(country_code, horizon)
 
-        # get historic generation mix of the country
-        historic_generation = get_historic_generation(country_code, horizon)
+        # get EIA historic generation mix of the country
+        eia_historic_generation = get_eia_historic_generation(country_code, horizon)
+        # get Ember historic generation mix of the country
+        ember_historic_generation = get_ember_historic_generation(country_code, horizon)
 
         # get real network length and voltages
         real_length, real_voltages = real_network_length(country_code)
 
         # compare the data
-        demand_comparison = compare_demands(demand, historic_demand)
-        capacity_comparison = compare_capacities(generation_capacities, historic_capacities)
-        generation_comparison = compare_generation(generation_mix, historic_generation)
+        demand_comparison = compare_demands(demand, eia_historic_demand, ember_historic_demand)
+        capacity_comparison = compare_capacities(generation_capacities, eia_historic_capacities, ember_historic_capacities)
+        generation_comparison = compare_generation(generation_mix, eia_historic_generation, ember_historic_generation)
         network_comparison = compare_network_lines(network_length, network_voltages, real_length, real_voltages)
 
         demand_comparison.to_excel(writer, sheet_name=country_code, startrow=0, startcol=0)
         capacity_comparison.to_excel(writer, sheet_name=country_code, startrow=3, startcol=0)
-        generation_comparison.to_excel(writer, sheet_name=country_code, startrow=0, startcol=5)
-        network_comparison.to_excel(writer, sheet_name=country_code, startrow=0, startcol=10)
+        generation_comparison.to_excel(writer, sheet_name=country_code, startrow=0, startcol=7)
+        network_comparison.to_excel(writer, sheet_name=country_code, startrow=0, startcol=14)
