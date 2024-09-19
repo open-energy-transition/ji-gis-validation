@@ -3,6 +3,9 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
+import os
+import sys
+sys.path.append(os.path.abspath(os.path.join(__file__, "../../")))
 from scripts._helpers import (
     mock_snakemake, update_config_from_wildcards,
     get_solved_network_path, load_network, build_directory,
@@ -12,9 +15,7 @@ import logging
 import pycountry
 import matplotlib.pyplot as plt
 import pandas as pd
-import os
-import sys
-sys.path.append(os.path.abspath(os.path.join(__file__, "../../")))
+
 
 
 warnings.filterwarnings("ignore")
@@ -625,9 +626,9 @@ def run(country_code, horizon):
 if __name__ == "__main__":
     if "snakemake" not in globals():
         snakemake = mock_snakemake(
-            "validate",
+            "plot_validation",
             countries="US",
-            planning_horizon=2020,
+            planning_horizon="2021",
         )
     # update config based on wildcards
     config = update_config_from_wildcards(
