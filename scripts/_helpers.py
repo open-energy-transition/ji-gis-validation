@@ -18,12 +18,13 @@ warnings.filterwarnings("ignore")
 
 
 # get the base working directory
-BASE_PATH = os.path.abspath(os.path.join(__file__ ,"../.."))
+BASE_PATH = os.path.abspath(os.path.join(__file__, "../.."))
 # directory to data and result folders
 DATA_DIR = BASE_PATH + "/data/"
 PYPSA_RESULTS_DIR = BASE_PATH + "/pypsa_data/results"
 PYPSA_NETWORKS_DIR = BASE_PATH + "/pypsa_data/networks"
 RESULTS_DIR = BASE_PATH + "/results/"
+PLOTS_DIR = BASE_PATH + "/results/plots/"
 
 
 def create_folder(directory):
@@ -52,7 +53,7 @@ def get_solved_network_path(country_code, horizon, directory):
     filenames = os.listdir(os.path.join(directory, foldername))
     if len(filenames) != 1:
         logging.warning(f"Only 1 network per scenario is allowed currently!")
-    filepath = os.path.join(directory, foldername, filenames[0])   
+    filepath = os.path.join(directory, foldername, filenames[0])
     return filepath
 
 
@@ -98,7 +99,7 @@ def get_country_name(country_code):
         return country.name, country.alpha_3 if country else None
     except KeyError:
         return None
-    
+
 
 def get_country_list(directory):
     """ Input:
@@ -129,11 +130,6 @@ def mock_snakemake(rule_name, **wildcards):
     """
 
     script_dir = Path(__file__).parent.resolve()
-    print(script_dir)
-    print(Path.cwd().resolve())
-    assert (
-        Path.cwd().resolve() == script_dir
-    ), f"mock_snakemake has to be run from the repository scripts directory {script_dir}"
     os.chdir(script_dir.parent)
     for p in sm.SNAKEFILE_CHOICES:
         if Path(p).exists():
