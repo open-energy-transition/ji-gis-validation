@@ -4,3 +4,4 @@ results
 scripts/__pycache__
 .snakemake
 gurobi.log
+.env
