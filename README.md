@@ -33,7 +33,7 @@ snakemake -call results/validation/validation_AU_2021.xlsx
 
 ## 3. Upload computed data into database
 
-To calculate network parameters for all countries and planning horizons specified in `database_fill` section of `config.yaml` and upload data into the database, run:
+First, it is important to place `.env` file with postgresql credentials into working directory (i.e. `path-to/ji-gis-app/.`). To calculate network parameters for all countries and planning horizons specified in `database_fill` section of `config.yaml` and upload data into the database, run:
 ``` bash
 snakemake -call fill_main_data_all
 ```
