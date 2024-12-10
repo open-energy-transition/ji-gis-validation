@@ -158,7 +158,7 @@ def get_co2_emissions(n):
     co2_emissions = generation_mix.multiply(co2_emissions_MWh_el, fill_value=0) # in tCO2_eq
     # drop entries with 0 emission and NaN value
     co2_emissions.dropna(inplace=True)
-    co2_emissions = co2_emissions[co2_emissions != 0]
+
     return co2_emissions
 
 
