@@ -30,3 +30,28 @@ To run validation to a single country (e.g. for Austria in 2021), the following 
 ``` bash
 snakemake -call results/validation/validation_AU_2021.xlsx
 ```
+
+## 3. Upload computed data into database
+
+To calculate network parameters for all countries and planning horizons specified in `database_fill` section of `config.yaml` and upload data into the database, run:
+``` bash
+snakemake -call fill_main_data_all
+```
+To calculate network parameters to specific country and horizon, run:
+``` bash
+snakemake -call results/database_fill/done_AU_2021.txt
+```
+The list of all calculated parameters for each scenario is:
+|Table name                 |Description                                        |
+|---------------------------|---------------------------------------------------|  
+|`total_costs_by_techs`     |Provides total costs by carrier in billion EUR     |
+|`investment_costs_by_techs`|Provides investment costs by carrier in billion EUR|
+|`electricity_prices`       |Provides electricity price in EUR/MWh              |
+|`generation_mix`           |Provides generation mix in TWh                     |
+|`total_load`               |Provides total load in TWh                         |
+|`installed_capacity`       |Provides installed capacities by carrier in GW     |
+|`optimal_capacity`         |Provides optimal capacities by carrier in GW       |
+|`capacity_expansion`       |Provides capacity expansion by carrier in GW       |
+|`co2_emissions`            |Provides CO2 emissions in tCO2_eq                  |
+
+Each table contains `scenario_id` key which is in form of `{country_code}_{horizon}_{version}` (e.g. `AU_2021_1`). The version means the iteration number.
