@@ -215,6 +215,7 @@ def write_to_db(df, conn, table_name: str):
             connection.rollback()
             raise e
 
+
 if __name__ == "__main__":
     if "snakemake" not in globals():
         snakemake = mock_snakemake(
