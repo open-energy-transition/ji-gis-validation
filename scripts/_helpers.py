@@ -377,7 +377,7 @@ def connect_to_db():
         # Get POST_TABLE as a JSON string
         post_table_json = os.getenv('POST_TABLE')
         if not post_table_json:
-            raise ValueError("POST_TABLE is not set in the environment variables.")
+            raise ValueError("POST_TABLE is not set in `.env` file.")
 
         # Parse JSON string into a Python dictionary
         db_params = json.loads(post_table_json)
