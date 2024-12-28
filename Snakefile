@@ -70,7 +70,7 @@ rule fill_main_data:
         countries=config["database_fill"]["countries"],
         planning_horizon=config["database_fill"]["planning_horizon"],
     output:
-        complete=RESULTS_DIR + "database_fill/done_{countries}_{planning_horizon}.txt",
+        excel=RESULTS_DIR + "database_fill/output_{countries}_{planning_horizon}.xlsx",
     resources:
         mem_mb=8000,
     script:
@@ -80,6 +80,6 @@ rule fill_main_data:
 rule fill_main_data_all:
     input:
         expand(RESULTS_DIR
-            + "database_fill/done_{countries}_{planning_horizon}.txt",
+            + "database_fill/output_{countries}_{planning_horizon}.xlsx",
             **config["database_fill"],
         ),

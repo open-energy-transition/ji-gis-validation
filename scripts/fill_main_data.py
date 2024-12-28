@@ -321,6 +321,11 @@ if __name__ == "__main__":
         "co2_emissions": co2_emissions
     }
 
+    # write to Excel file
+    with pd.ExcelWriter(snakemake.output.excel, engine="openpyxl") as writer:
+        for sheet_name, df in table_data_mapping.items():
+            df.to_excel(writer, sheet_name=sheet_name, index=False)
+
     # write data to database
     for table, df in table_data_mapping.items():
         try:
@@ -328,6 +333,3 @@ if __name__ == "__main__":
         except Exception as e:
             logger.error(f"Error happened when writing to table {table}: {e}")
     
-    # write output file that works as trigger for snakemake
-    with open(snakemake.output.complete, 'w') as file:
-        file.write(f"Done for {country_code} {horizon}")
