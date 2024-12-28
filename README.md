@@ -33,7 +33,11 @@ snakemake -call results/validation/validation_AU_2021.xlsx
 
 ## 3. Upload computed data into database
 
-First, it is important to place `.env` file with postgresql credentials into working directory (i.e. `path-to/ji-gis-app/.`). Then install `python-dotenv` and `psycopg2` on top of existing `pypsa-earth` conda environment by running:
+First, it is important to place `.env` file with postgresql credentials into working directory (i.e. `path-to/ji-gis-app/.`). The`.env` file should contain information for database connection, such as host, port, database name, username, and password, and meet the following format:  
+``` bash
+POST_TABLE = {"dbname": "database_name", "user": "yourusername", "password": "yourpassword", "host": "ipaddress", "port": "yourport"}
+```
+Replace values with valid arguements. Then install `python-dotenv` and `psycopg2` on top of existing `pypsa-earth` conda environment by running:
 ``` bash
 pip install psycopg2 python-dotenv
 ```
