@@ -3,5 +3,10 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 validation:
-  countries: ["AU", "BR", "CN", "CO", "DE", "IN", "IT", "MX", "NG", "US", "ZA"]
+  countries: ["AU", "BR", "CO", "DE", "IN", "IT", "MX", "NG", "US", "ZA"]
   planning_horizon: [2021]
+
+database_fill:
+  countries: ["AU", "BR", "CO", "DE", "IN", "IT", "MX", "NG", "US", "ZA"]
+  planning_horizon: [2021, 2050]
+  version: "1" # version of writing to database

@@ -63,3 +63,23 @@ rule validate_all:
             + "generation_validation_detailed_{countries}_{planning_horizon}.png",
             **config["validation"],
         ),
+
+
+rule fill_main_data:
+    params:
+        countries=config["database_fill"]["countries"],
+        planning_horizon=config["database_fill"]["planning_horizon"],
+    output:
+        excel=RESULTS_DIR + "database_fill/output_{countries}_{planning_horizon}.xlsx",
+    resources:
+        mem_mb=8000,
+    script:
+        "scripts/fill_main_data.py"
+
+
+rule fill_main_data_all:
+    input:
+        expand(RESULTS_DIR
+            + "database_fill/output_{countries}_{planning_horizon}.xlsx",
+            **config["database_fill"],
+        ),
