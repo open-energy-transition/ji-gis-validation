@@ -83,3 +83,20 @@ rule fill_main_data_all:
             + "database_fill/output_{countries}_{planning_horizon}.xlsx",
             **config["database_fill"],
         ),
+
+
+rule fill_investment_co2:
+    output:
+        excel=RESULTS_DIR + "database_fill/investment_pre_co2_reduced_{countries}.xlsx",
+    resources:
+        mem_mb=8000,
+    script:
+        "scripts/fill_investment_co2.py"
+
+
+rule fill_investment_co2_all:
+    input:
+        expand(RESULTS_DIR
+            + "database_fill/investment_pre_co2_reduced_{countries}.xlsx",
+            **config["database_fill"],
+        ),
