@@ -22,7 +22,7 @@ def compute_costs(n, cost_type):
 
 
 def sum_costs(cap_cost_df, op_cost_df):
-    total_cost = cap_cost_df + op_cost_df
+    total_cost = cap_cost_df.add(op_cost_df, fill_value=0)
     new_index = [x.split(":")[1] for x in total_cost.index]
     total_cost.index = new_index
     return total_cost
