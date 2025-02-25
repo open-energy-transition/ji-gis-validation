@@ -49,6 +49,12 @@ To calculate network parameters to specific country and horizon, run:
 ``` bash
 snakemake -call results/database_fill/done_AU_2021.txt
 ```
+
+After filling the main data, it is necessary to estimate cross-horizon information, such as investment needed and investments per CO<sub>2</sub> reduced. To calculate such data, run `fill_investment_co2_all` rule as follows:
+``` bash
+snakemake -call fill_investment_co2_all
+```
+
 The list of all calculated parameters for each scenario is:
 |Table name                 |Description                                        |
 |---------------------------|---------------------------------------------------|  
@@ -60,6 +66,8 @@ The list of all calculated parameters for each scenario is:
 |`installed_capacity`       |Provides installed capacities by carrier in GW     |
 |`optimal_capacity`         |Provides optimal capacities by carrier in GW       |
 |`capacity_expansion`       |Provides capacity expansion by carrier in GW       |
-|`co2_emissions`            |Provides CO2 emissions in tCO2_eq                  |
+|`co2_emissions`            |Provides CO2 emissions in tCO<sub>2, eq</sub>                  |
+|`investments_needed`       |Provides investment needed by carrier to reach net 0 in 2050 in EUR|
+|`investment_per_co2_reduced`|Provides average investments required per 1 tonn of CO<sub>2</sub> reduced in EUR/tCO<sub>2</sub>|
 
 Each table contains `scenario_id` key which is in form of `{country_code}_{horizon}_{version}` (e.g. `AU_2021_1`). The version means the iteration number.
