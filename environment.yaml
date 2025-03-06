@@ -1,0 +1,24 @@
+# SPDX-FileCopyrightText:  Open Energy Transition gGmbH
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+name: ji-gis
+channels:
+- conda-forge
+- bioconda
+dependencies:
+- python>=3.8
+- pip
+
+- pypsa>=0.24, <0.25
+- snakemake-minimal<8
+- numpy
+- pandas
+- ipykernel
+- jupyterlab
+- pycountry
+
+- pip:
+  - psycopg2
+  - python-dotenv
+  - openpyxl
