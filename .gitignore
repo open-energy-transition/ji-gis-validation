@@ -5,3 +5,4 @@ scripts/__pycache__
 .snakemake
 gurobi.log
 .env
+scripts/.ipynb_checkpoints
