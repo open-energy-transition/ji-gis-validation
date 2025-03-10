@@ -100,3 +100,15 @@ rule fill_investment_co2_all:
             + "database_fill/investment_pre_co2_reduced_{countries}.xlsx",
             **config["database_fill"],
         ),
+
+
+rule fill_grid_data:
+    params:
+        countries=config["database_fill"]["countries"],
+        planning_horizon=config["database_fill"]["planning_horizon"],
+    output:
+        excel=RESULTS_DIR + "database_grid_fill/output.csv",
+    resources:
+        mem_mb=8000,
+    script:
+        "scripts/netcdf_power_grid_to_postgis.py"
