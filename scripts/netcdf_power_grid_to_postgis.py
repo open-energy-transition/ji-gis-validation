@@ -36,6 +36,10 @@ import pandas as pd
 from shapely.geometry import Point, LineString
 import pypsa
 import numpy as np
+import json
+import glob
+from _helpers import mock_snakemake, update_config_from_wildcards, PYPSA_RESULTS_DIR
+
 
 def clean_database(engine):
     """Clean existing PyPSA-specific tables from the database."""
@@ -50,6 +54,7 @@ def clean_database(engine):
         connection.commit()
     
     print("Cleanup complete - removed only PyPSA-specific tables.")
+
 
 def create_postgis_table(engine, table_name, columns):
     """Create a PostGIS table with the specified columns."""
@@ -94,6 +99,7 @@ def create_postgis_table(engine, table_name, columns):
     with engine.connect() as conn:
         conn.execute(text(sql))
     print(f"Table {table_name} created successfully.")
+
 
 def load_data_to_postgis(n, engine, country_code):
     """Load network data into PostGIS tables."""
@@ -152,12 +158,14 @@ def load_data_to_postgis(n, engine, country_code):
         except Exception as e:
             print(f"Error inserting data into table {table_name}: {e}")
 
+
 def process_netcdf(file_path, engine):
     """Process a single NetCDF file and load its data into the database."""
     print(f"Processing NetCDF file: {file_path}")
     country_code = os.path.basename(file_path).split('_')[0]
     n = pypsa.Network(file_path)
     load_data_to_postgis(n, engine, country_code)
+
 
 def verify_database_tables(engine):
     """Verify the contents of the created tables."""
@@ -184,39 +192,61 @@ def verify_database_tables(engine):
                     print(row)
                 print("-" * 80)
 
-def main():
+
+def main(scenario_names):
     """Main function to run the conversion process."""
-    # Configure your database connection here
-    db_params = {
-        'dbname': 'your_database_name',
-        'user': 'your_username',
-        'password': 'your_password',
-        'host': 'your_host',
-        'port': '5432'
-    }
+    try:
+        # Get POST_TABLE as a JSON string
+        post_table_json = os.getenv('POST_TABLE')
+        if not post_table_json:
+            raise ValueError("POST_TABLE is not set in `.env` file.")
+        # Configure your database connection here
+        db_params = json.loads(post_table_json)
     
-    # Create database connection
-    engine = create_engine(
-        f"postgresql://{db_params['user']}:{db_params['password']}@{db_params['host']}:{db_params['port']}/{db_params['dbname']}"
-    )
+        # Create database connection
+        engine = create_engine(
+            f"postgresql://{db_params['user']}:{db_params['password']}@{db_params['host']}:{db_params['port']}/{db_params['dbname']}"
+        )
     
-    # Clean existing tables
-    clean_database(engine)
+        # Clean existing tables
+        #clean_database(engine)
 
-    # List your NetCDF files here
-    netcdf_files = [
-        "/path/to/your/AU_2021.nc",
-        "/path/to/your/BR_2021.nc",
-        # Add more .nc files as needed
-    ]
+        # List your NetCDF files here
+        scenario_folders = [PYPSA_RESULTS_DIR + f"/{x}/networks/" for x in scenario_names]
+        netcdf_files = [sorted(glob.glob(os.path.join(scenario_folder, "*.nc"))) for scenario_folder in scenario_folders]
+        netcdf_files = [x[0] for x in netcdf_files]
 
-    # Process each NetCDF file
-    for netcdf_file in tqdm(netcdf_files, desc="Processing NetCDF files"):
-        process_netcdf(netcdf_file, engine)
+        # Process each NetCDF file
+        for netcdf_file in tqdm(netcdf_files, desc="Processing NetCDF files"):
+            process_netcdf(netcdf_file, engine)
+        
+        # Verify the loaded data
+        print("\nVerifying loaded tables...")
+        verify_database_tables(engine)
+
+        # write to csv file to mark as complete
+        df = pd.DataFrame(scenario_names, columns=["scenario_name"])
+        df.to_csv(snakemake.output.scenarios, index=False)
+
+    except Exception as e:
+        print(f"Error connecting to the database: {e}")
+        return None
     
-    # Verify the loaded data
-    print("\nVerifying loaded tables...")
-    verify_database_tables(engine)
 
 if __name__ == "__main__":
-    main() 
+    if "snakemake" not in globals():
+        snakemake = mock_snakemake(
+            "fill_grid_data",
+            countries=["US", "AU"],
+        )
+    # update config based on wildcards
+    config = update_config_from_wildcards(snakemake.config, snakemake.wildcards)
+
+    country_code = config["database_fill"]["countries"]
+    horizon = 2021
+
+    # scenario names
+    scenario_names = [f"{x}_{horizon}" for x in country_code]
+
+    # fill grid data for scenario names
+    main(scenario_names)

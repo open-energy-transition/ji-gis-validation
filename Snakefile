@@ -107,7 +107,7 @@ rule fill_grid_data:
         countries=config["database_fill"]["countries"],
         planning_horizon=config["database_fill"]["planning_horizon"],
     output:
-        excel=RESULTS_DIR + "database_grid_fill/output.csv",
+        scenarios=RESULTS_DIR + "database_grid_fill/scenarios.csv",
     resources:
         mem_mb=8000,
     script:
