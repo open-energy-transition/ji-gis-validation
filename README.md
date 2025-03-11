@@ -15,6 +15,15 @@ pypsa_data/
         └── networks/
             └── elec_s_50flex_ec_lcopt_1H.nc
 ```
+Before running any scripts, ensure all required dependencies are set up using the Conda package manager. To install the dependencies, run:
+```bash
+conda env create -f environment.yaml
+```
+Then, activate the environment using the following command:
+```bash
+conda activate ji-gis
+```
+
 
 ## 2. Running validation
 
@@ -37,11 +46,8 @@ First, it is important to place `.env` file with postgresql credentials into wor
 ``` bash
 POST_TABLE = {"dbname": "database_name", "user": "yourusername", "password": "yourpassword", "host": "ipaddress", "port": "yourport"}
 ```
-Replace values with valid arguements. Then install `python-dotenv` and `psycopg2` on top of existing `pypsa-earth` conda environment by running:
-``` bash
-pip install psycopg2 python-dotenv
-```
-To calculate network parameters for all countries and planning horizons specified in `database_fill` section of `config.yaml` and upload data into the database, run:
+
+To calculate network parameters (e.g. total system costs, generation mix, and etc) for all countries and planning horizons specified in `database_fill` section of `config.yaml` and upload data into the database, run:
 ``` bash
 snakemake -call fill_main_data_all
 ```
@@ -53,6 +59,10 @@ snakemake -call results/database_fill/done_AU_2021.txt
 After filling the main data, it is necessary to estimate cross-horizon information, such as investment needed and investments per CO<sub>2</sub> reduced. To calculate such data, run `fill_investment_co2_all` rule as follows:
 ``` bash
 snakemake -call fill_investment_co2_all
+```
+Finally, GIS related grid data (e.g. buses, lines, and etc) needs to be uploaded to database. To upload grid data, run:
+```bash
+snakemake -call fill_grid_data
 ```
 
 The list of all calculated parameters for each scenario is:
