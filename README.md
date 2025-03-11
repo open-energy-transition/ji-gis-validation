@@ -65,7 +65,7 @@ Finally, GIS related grid data (e.g. buses, lines, and etc) needs to be uploaded
 snakemake -call fill_grid_data
 ```
 
-The list of all calculated parameters for each scenario is:
+The list of tables containing all estimated parameters for each scenario is:
 |Table name                 |Description                                        |
 |---------------------------|---------------------------------------------------|  
 |`total_costs_by_techs`     |Provides total costs by carrier in billion EUR     |
@@ -81,3 +81,14 @@ The list of all calculated parameters for each scenario is:
 |`investment_per_co2_reduced`|Provides average investments required per 1 tonn of CO<sub>2</sub> reduced in EUR/tCO<sub>2</sub>|
 
 Each table contains `scenario_id` key which is in form of `{country_code}_{horizon}_{version}` (e.g. `AU_2021_1`). The version means the iteration number.
+
+The list of grid related tables:
+|Table name                 |Description                                        |
+|---------------------------|---------------------------------------------------|
+|`buses`                    |Provides information about network buses (e.g. location, voltage levels, and etc)|
+|`carriers`                 |Provides information about carriers of the network|
+|`generators`               |Provides information about electricity generatiion technologies|
+|`lines`                    |Provides information about network lines (e.g. geometry, nominal capacities, and etc)|
+|`loads`                    |Provides information about electricity loads|
+|`storage_units`            |Provides information about storage units (e.g. hydro and PHS)|
+|`stores`                   |Provides information about stores (e.g. battery and H2 stores)|
