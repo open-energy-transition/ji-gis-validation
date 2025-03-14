@@ -38,22 +38,24 @@ import pypsa
 import numpy as np
 import json
 import glob
-from _helpers import mock_snakemake, update_config_from_wildcards, PYPSA_RESULTS_DIR
+from _helpers import mock_snakemake, update_config_from_wildcards, PYPSA_RESULTS_DIR, get_logger
+
+logger = get_logger()
 
 
 def clean_database(engine):
     """Clean existing PyPSA-specific tables from the database."""
-    print("Starting targeted database cleanup...")
+    logger.info("Starting targeted database cleanup...")
     
     tables_to_clean = ['buses', 'carriers', 'generators', 'lines', 'loads', 'storage_units', 'stores']
     
     with engine.connect() as connection:
         for table in tables_to_clean:
-            print(f"Deleting table: {table}")
+            logger.info(f"Deleting table: {table}")
             connection.execute(text(f"DROP TABLE IF EXISTS {table} CASCADE"))
         connection.commit()
     
-    print("Cleanup complete - removed only PyPSA-specific tables.")
+    logger.info("Cleanup complete - removed only PyPSA-specific tables.")
 
 
 def create_postgis_table(engine, table_name, columns):
@@ -61,7 +63,7 @@ def create_postgis_table(engine, table_name, columns):
     if table_name.lower() in ["all", "user", "group"]:
         table_name = f"table_{table_name}"
     
-    print(f"Creating table {table_name} in the database...")
+    logger.info(f"Creating table {table_name} in the database...")
     column_defs = []
     for col, dtype in columns.items():
         if col == 'country_code':
@@ -98,7 +100,7 @@ def create_postgis_table(engine, table_name, columns):
     
     with engine.connect() as conn:
         conn.execute(text(sql))
-    print(f"Table {table_name} created successfully.")
+    logger.info(f"Table {table_name} created successfully.")
 
 
 def load_data_to_postgis(n, engine, country_code):
@@ -106,7 +108,7 @@ def load_data_to_postgis(n, engine, country_code):
     tables = ['buses', 'carriers', 'generators', 'lines', 'loads', 'storage_units', 'stores']
     
     for table_name in tables:
-        print(f"Loading data from {table_name} for country {country_code} into the database...")
+        logger.info(f"Loading data from {table_name} for country {country_code} into the database...")
         
         df = getattr(n, table_name)
         index_name = df.index.name if df.index.name else table_name.capitalize()
@@ -156,12 +158,12 @@ def load_data_to_postgis(n, engine, country_code):
             else:
                 gdf.to_sql(table_name, engine, if_exists='append', index=False)
         except Exception as e:
-            print(f"Error inserting data into table {table_name}: {e}")
+            logger.error(f"Error inserting data into table {table_name}: {e}")
 
 
 def process_netcdf(file_path, engine):
     """Process a single NetCDF file and load its data into the database."""
-    print(f"Processing NetCDF file: {file_path}")
+    logger.info(f"Processing NetCDF file: {file_path}")
     country_code = os.path.basename(file_path).split('_')[0]
     n = pypsa.Network(file_path)
     load_data_to_postgis(n, engine, country_code)
@@ -169,7 +171,7 @@ def process_netcdf(file_path, engine):
 
 def verify_database_tables(engine):
     """Verify the contents of the created tables."""
-    print("\n=== VERIFYING DATABASE TABLES ===")
+    logger.info("\n=== VERIFYING DATABASE TABLES ===")
     
     with engine.connect() as connection:
         inspector = inspect(engine)
@@ -184,13 +186,13 @@ def verify_database_tables(engine):
                 sample = connection.execute(sample_query)
                 columns = sample.keys()
                 
-                print(f"\nTable: {table}")
-                print(f"Total records: {count}")
-                print("Columns:", ", ".join(columns))
-                print("\nSample data:")
+                logger.info(f"\nTable: {table}")
+                logger.info(f"Total records: {count}")
+                logger.info(f"Columns: {', '.join(columns)}")
+                logger.info("\nSample data:")
                 for row in connection.execute(sample_query):
-                    print(row)
-                print("-" * 80)
+                    logger.info(row)
+                logger.info("-" * 80)
 
 
 def main(scenario_names):
@@ -221,7 +223,7 @@ def main(scenario_names):
             process_netcdf(netcdf_file, engine)
         
         # Verify the loaded data
-        print("\nVerifying loaded tables...")
+        logger.info("\nVerifying loaded tables...")
         verify_database_tables(engine)
 
         # write to csv file to mark as complete
@@ -229,7 +231,7 @@ def main(scenario_names):
         df.to_csv(snakemake.output.scenarios, index=False)
 
     except Exception as e:
-        print(f"Error connecting to the database: {e}")
+        logger.error(f"Error connecting to the database: {e}")
         return None
     
 
