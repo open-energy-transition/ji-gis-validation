@@ -17,6 +17,9 @@ dependencies:
 - ipykernel
 - jupyterlab
 - pycountry
+- sqlalchemy
+- geoalchemy2
+- geopandas
 
 - pip:
   - psycopg2
