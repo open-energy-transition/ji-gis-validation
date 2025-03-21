@@ -55,7 +55,9 @@ if __name__ == "__main__":
                 # obtain total investments in billion EURs
                 value = temp_df["investment_cost"].sum()
                 # obtain investments by carrier in billion EURs
-                investments[horizon] = temp_df["investment_cost"]
+                investments_by_carrier = temp_df["investment_cost"].copy()
+                investments_by_carrier.name = horizon
+                investments = pd.concat([investments, investments_by_carrier], axis=1)
             elif param == "co2_emissions":
                 # obtain total co2 emissions in tCO2_eq
                 value = temp_df["co2_emission"].sum()
@@ -68,6 +70,8 @@ if __name__ == "__main__":
     investment_per_co2_reduced = (delta_investment / delta_co2) * 1e6
 
     # calculate investment needed
+    investments.fillna(0, inplace=True)
+    investments.index.name = "carrier"
     investment_needed = (investments[2050] - investments[2021]).clip(lower=0).to_frame()
     investment_needed.columns = ["investment_needed"]
     investment_needed.reset_index(inplace=True)
