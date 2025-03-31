@@ -34,7 +34,7 @@ def get_total_costs(network):
     total_costs = sum_costs(cap_costs, op_costs)
     
     df = total_costs.groupby(total_costs.index).sum()
-    
+
     # convert to billions
     df = df / 1e9
     df = df.groupby(df.index.map(rename_techs)).sum()
@@ -64,6 +64,17 @@ def get_investment_costs(network):
     df = df / 1e9
     df = df.groupby(df.index.map(rename_techs)).sum()
     df.drop("-", inplace=True)
+
+    # consider only carriers which have share in generation mix for 2050
+    if horizon == '2050':
+        # get generation mix and carriers with 0 generation mix
+        generation_mix = get_generation_mix(network)
+        non_generating_carriers = generation_mix[generation_mix == 0].index
+        non_generating_carriers = [s if s.isupper() else s.capitalize() for s in non_generating_carriers]
+
+        # drop carriers which have 0 generation
+        df.drop(index=non_generating_carriers, errors='ignore', inplace=True)
+
     return df
 
 
@@ -232,7 +243,7 @@ if __name__ == "__main__":
         snakemake = mock_snakemake(
             "fill_main_data", 
             countries="US",
-            planning_horizon="2021",
+            planning_horizon="2050",
         )
     # update config based on wildcards
     config = update_config_from_wildcards(snakemake.config, snakemake.wildcards)
