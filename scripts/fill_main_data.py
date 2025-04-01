@@ -28,7 +28,7 @@ def sum_costs(cap_cost_df, op_cost_df):
     return total_cost
 
 
-def get_total_costs(network):
+def get_total_costs(network, non_generating_carriers):
     cap_costs = compute_costs(network, "Capital")
     op_costs = compute_costs(network, "Operational")
     total_costs = sum_costs(cap_costs, op_costs)
@@ -42,9 +42,7 @@ def get_total_costs(network):
 
     # consider only carriers which have share in generation mix for 2050
     if horizon == '2050':
-        # get generation mix and carriers with 0 generation mix
-        generation_mix = get_generation_mix(network)
-        non_generating_carriers = generation_mix[generation_mix == 0].index
+        # format carriers with 0 generation to be dropped
         non_generating_carriers = [s if s.isupper() else s.capitalize() for s in non_generating_carriers]
 
         # drop carriers which have 0 generation
@@ -53,7 +51,7 @@ def get_total_costs(network):
     return df
 
 
-def get_investment_costs(network):
+def get_investment_costs(network, non_generating_carriers):
     cap_costs = compute_costs(network, "Capital")
     new_index = [x.split(":")[1] for x in cap_costs.index]
     cap_costs.index = new_index
@@ -67,9 +65,7 @@ def get_investment_costs(network):
 
     # consider only carriers which have share in generation mix for 2050
     if horizon == '2050':
-        # get generation mix and carriers with 0 generation mix
-        generation_mix = get_generation_mix(network)
-        non_generating_carriers = generation_mix[generation_mix == 0].index
+        # format carriers with 0 generation to be dropped
         non_generating_carriers = [s if s.isupper() else s.capitalize() for s in non_generating_carriers]
 
         # drop carriers which have 0 generation
@@ -147,21 +143,25 @@ def get_total_load(n):
     return demand
 
 
-def get_installed_capacities(n):
+def get_installed_capacities(n, non_generating_carriers):
     gen_capacities = n.generators.groupby("carrier").p_nom.sum()
     storage_capacities = n.storage_units.groupby("carrier").p_nom.sum()
     capacities = (pd.concat([gen_capacities, storage_capacities], axis=0) / 1e3).round(4)
     if "load" in n.generators.carrier.unique():
         capacities.drop("load", inplace=True)
+    # drop carriers which have 0 generation
+    capacities.drop(index=non_generating_carriers, errors='ignore', inplace=True)
     return capacities
 
 
-def get_optimal_capacities(n):
+def get_optimal_capacities(n, non_generating_carriers):
     gen_capacities = n.generators.groupby("carrier").p_nom_opt.sum()
     storage_capacities = n.storage_units.groupby("carrier").p_nom_opt.sum()
     capacities = (pd.concat([gen_capacities, storage_capacities], axis=0) / 1e3).round(4)
     if "load" in n.generators.carrier.unique():
         capacities.drop("load", inplace=True)
+    # drop carriers which have 0 generation
+    capacities.drop(index=non_generating_carriers, errors='ignore', inplace=True)
     return capacities
 
 
@@ -242,7 +242,7 @@ if __name__ == "__main__":
     if "snakemake" not in globals():
         snakemake = mock_snakemake(
             "fill_main_data", 
-            countries="US",
+            countries="AU",
             planning_horizon="2050",
         )
     # update config based on wildcards
@@ -258,8 +258,20 @@ if __name__ == "__main__":
     # scenario name
     scenario_name = f"{country_code}_{horizon}_{version}"
 
+    # generation mix in TWh
+    generation_mix = get_generation_mix(network).to_frame()
+    generation_mix.reset_index(inplace=True)
+    generation_mix.rename(columns={"index": "carrier", 0: "generation"}, inplace=True)
+    generation_mix["horizon"] = int(horizon)
+    generation_mix["country_code"] = country_code
+    generation_mix["scenario_id"] = scenario_name
+    # get non-generating carriers
+    non_generating_carriers = generation_mix[generation_mix["generation"] == 0].carrier.values
+    # remove PHS from non-generating carriers
+    non_generating_carriers = [s for s in non_generating_carriers if s != "PHS"]
+
     # total costs by technologies in billion EUR
-    total_costs_by_techs = get_total_costs(network)
+    total_costs_by_techs = get_total_costs(network, non_generating_carriers)
     total_costs_by_techs.reset_index(inplace=True)
     total_costs_by_techs.rename(columns={"index": "carrier", "cost": "total_costs"}, inplace=True)
     total_costs_by_techs["horizon"] = int(horizon)
@@ -267,7 +279,7 @@ if __name__ == "__main__":
     total_costs_by_techs["scenario_id"] = scenario_name
 
     # investment costs by technology in billion EUR
-    investment_costs_by_techs = get_investment_costs(network)
+    investment_costs_by_techs = get_investment_costs(network, non_generating_carriers)
     investment_costs_by_techs.reset_index(inplace=True)
     investment_costs_by_techs.rename(columns={"index": "carrier", "cost": "investment_cost"}, inplace=True)
     investment_costs_by_techs["horizon"] = int(horizon)
@@ -281,14 +293,6 @@ if __name__ == "__main__":
     electricity_prices["country_code"] = country_code
     electricity_prices["scenario_id"] = scenario_name
 
-    # generation mix in TWh
-    generation_mix = get_generation_mix(network).to_frame()
-    generation_mix.reset_index(inplace=True)
-    generation_mix.rename(columns={"index": "carrier", 0: "generation"}, inplace=True)
-    generation_mix["horizon"] = int(horizon)
-    generation_mix["country_code"] = country_code
-    generation_mix["scenario_id"] = scenario_name
-
     # total load in TWh
     total_load = get_total_load(network)
     total_load = pd.DataFrame(data=[total_load], columns=["total_load"])
@@ -297,7 +301,7 @@ if __name__ == "__main__":
     total_load["scenario_id"] = scenario_name
 
     # get installed capacity in GW
-    installed_capacity = get_installed_capacities(network).to_frame()
+    installed_capacity = get_installed_capacities(network, non_generating_carriers).to_frame()
     installed_capacity.reset_index(inplace=True)
     installed_capacity.rename(columns={"index": "carrier", "p_nom": "installed_capacity"}, inplace=True)
     installed_capacity["horizon"] = int(horizon)
@@ -305,7 +309,7 @@ if __name__ == "__main__":
     installed_capacity["scenario_id"] = scenario_name
 
     # get optimal capacity in GW
-    optimal_capacity = get_optimal_capacities(network).to_frame()
+    optimal_capacity = get_optimal_capacities(network, non_generating_carriers).to_frame()
     optimal_capacity.reset_index(inplace=True)
     optimal_capacity.rename(columns={"index": "carrier", "p_nom_opt": "optimal_capacity"}, inplace=True)
     optimal_capacity["horizon"] = int(horizon)
@@ -313,8 +317,8 @@ if __name__ == "__main__":
     optimal_capacity["scenario_id"] = scenario_name
 
     # get capacity expansion in TWh
-    capacity_expansion = get_capacity_expansion(get_optimal_capacities(network), 
-                                                get_installed_capacities(network)).to_frame()
+    capacity_expansion = get_capacity_expansion(get_optimal_capacities(network, non_generating_carriers), 
+                                                get_installed_capacities(network, non_generating_carriers)).to_frame()
     capacity_expansion.reset_index(inplace=True)
     capacity_expansion.rename(columns={"index": "carrier", 0: "capacity_expansion"}, inplace=True)
     capacity_expansion["horizon"] = int(horizon)
