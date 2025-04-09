@@ -40,6 +40,9 @@ def get_total_costs(network, non_generating_carriers):
     df = df.groupby(df.index.map(rename_techs)).sum()
     df.drop("-", inplace=True)
 
+    # drop load shedding
+    df.drop("Load shedding", inplace=True, errors='ignore')
+
     # consider only carriers which have share in generation mix for 2050
     if horizon == '2050':
         # format carriers with 0 generation to be dropped
@@ -94,13 +97,33 @@ def rename_techs(label):
     return label
 
 
+def get_load_shedding_cases(network, threshold=1):
+    # get load shedding generators
+    load_shed_gens = network.generators.query("carrier == 'load'").index
+    # get load shedding dispatch
+    load_shed_dispatch = network.generators_t.p.multiply(network.snapshot_weightings.objective, axis=0)[load_shed_gens]
+    # get load shedding cases >= threshold in MW
+    load_shed_cases = load_shed_dispatch >= threshold * 1e3
+    # get mapping of load shedding generators to buses
+    load_shed_to_bus_mapping = network.generators.query("carrier == 'load'").bus
+    # map load shedding cases to buses
+    load_shed_cases = load_shed_cases.rename(columns=load_shed_to_bus_mapping)
+    return load_shed_cases
+
+
 def get_average_electricity_price(network):
-    # get objective cost in EUR
-    costs = network.objective
-    # get total load
-    load = network.loads_t.p_set.sum().sum()
+    # get load shedding cases (shedding >= 1 MW)
+    load_shed_cases = get_load_shedding_cases(network, threshold=1)
+    # get electricity load indices
+    load_indices = network.loads.index
+    # get loads in MWh
+    elec_loads = network.loads_t.p_set.multiply(network.snapshot_weightings.objective, axis=0)[load_indices]
+    # get total costs in EUR for non load shedding hours
+    total_costs = elec_loads.multiply(network.buses_t.marginal_price[elec_loads.columns]).multiply(network.snapshot_weightings.objective, axis=0)[~load_shed_cases].fillna(0).sum().sum()
+    # get total load in MWh for non load shedding hours
+    total_load = network.loads_t.p_set.multiply(network.snapshot_weightings.objective, axis=0)[load_indices][~load_shed_cases].fillna(0).sum().sum()
     # get costs EUR/MWh
-    prices = costs / load
+    prices = total_costs / total_load
     return prices.round(2)
 
 
@@ -130,6 +153,8 @@ def get_generation_mix(n):
     total_mix = total_mix.groupby(total_mix.index).sum() / 1e6
     # clip negative generation
     total_mix = total_mix.clip(lower=0)
+    # drop load shedding
+    total_mix.drop("load shedding", inplace=True, errors='ignore')
     return total_mix
 
 
