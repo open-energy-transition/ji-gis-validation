@@ -15,7 +15,7 @@ import glob
 from sqlalchemy import create_engine, text
 import warnings
 warnings.filterwarnings("ignore")
-from _helpers import mock_snakemake, update_config_from_wildcards, \
+from _helpers import mock_snakemake, update_config_from_wildcards, connect_to_db, \
                      PYPSA_RESULTS_DIR, DATA_DIR
 
 
@@ -387,7 +387,7 @@ def get_ember_historic_generation(country_code, horizon, data_dir):
         ][["Variable", "Value"]].set_index("Variable")
         
         # Standardize fuel types
-        generation_ember = generation_ember.replace({
+        generation_ember = generation_ember.rename({
             "Gas": "Natural gas",
             "Bioenergy": "Biomass",
             "Other Fossil": "Oil"
@@ -495,6 +495,23 @@ def clean_database(engine):
         
     except Exception as e:
         print(f"Error cleaning database: {e}")
+        raise
+
+def clean_scenario_data(scenario_id, engine):
+    """Clean scenario data from the database."""
+    try:
+        with engine.connect() as conn:
+            # Delete records for the given scenario_id
+            conn.execute(text(f"DELETE FROM demand_comparison WHERE scenario_id = '{scenario_id}'"))
+            conn.execute(text(f"DELETE FROM capacity_comparison WHERE scenario_id = '{scenario_id}'"))
+            conn.execute(text(f"DELETE FROM generation_comparison WHERE scenario_id = '{scenario_id}'"))
+            conn.execute(text(f"DELETE FROM network_comparison WHERE scenario_id = '{scenario_id}'"))
+            conn.commit()
+
+        print(f"Scenario data for {scenario_id} cleaned.")
+
+    except Exception as e:
+        print(f"Error cleaning scenario data: {e}")
         raise
 
 def compare_demands(network_demand, eia_historic_demand, ember_historic_demand):
@@ -695,12 +712,15 @@ def process_and_save_to_excel(n, country_code, horizon, data_dir, output_file):
         print(f"Error processing data for {country_code}: {e}")
         raise
 
-def load_excel_to_db(excel_file, engine, country_code, horizon):
+def load_excel_to_db(excel_file, engine, country_code, horizon, version):
     """Load Excel data into database."""
     try:
         # Read data from Excel
         df = pd.read_excel(excel_file, sheet_name=country_code)
         
+        # Get scenario_id
+        scenario_id = f"{country_code}_{horizon}_{version}"
+
         # 1. Process demand (first row)
         demand_data = pd.DataFrame({
             'metric': ['Electricity Demand [TWh]'],
@@ -711,7 +731,7 @@ def load_excel_to_db(excel_file, engine, country_code, horizon):
             'error_wrt_ember': [float(df.iloc[0, 5])],  # Error wrt Ember (%)
             'country_code': [country_code],
             'horizon': [horizon],
-            'scenario_id': [f"{country_code}_{horizon}_1"]
+            'scenario_id': [scenario_id]
         })
         
         # 2. Process capacities
@@ -731,7 +751,7 @@ def load_excel_to_db(excel_file, engine, country_code, horizon):
                 'error_wrt_ember': float(row.iloc[5]),
                 'country_code': country_code,
                 'horizon': horizon,
-                'scenario_id': f"{country_code}_{horizon}_1"
+                'scenario_id': scenario_id
             })
         
         capacity_df = pd.DataFrame(capacity_data)
@@ -753,7 +773,7 @@ def load_excel_to_db(excel_file, engine, country_code, horizon):
                 'error_wrt_ember': float(row.iloc[5]),
                 'country_code': country_code,
                 'horizon': horizon,
-                'scenario_id': f"{country_code}_{horizon}_1"
+                'scenario_id': scenario_id
             })
         
         generation_df = pd.DataFrame(generation_data)
@@ -766,7 +786,7 @@ def load_excel_to_db(excel_file, engine, country_code, horizon):
             'error_percent': [float(df.iloc[0, 17])],    # Error (%)
             'country_code': [country_code],
             'horizon': [horizon],
-            'scenario_id': [f"{country_code}_{horizon}_1"]
+            'scenario_id': [scenario_id]
         })
         
         # Handle infinite and NaN values
@@ -775,6 +795,9 @@ def load_excel_to_db(excel_file, engine, country_code, horizon):
                 df_to_clean[col] = df_to_clean[col].replace([np.inf, -np.inf], 0)
                 df_to_clean[col] = df_to_clean[col].fillna(0)
         
+        # Clean data for the scenario_id
+        clean_scenario_data(scenario_id, engine)
+
         # Save to database
         demand_data.to_sql('demand_comparison', engine, if_exists='append', index=False)
         capacity_df.to_sql('capacity_comparison', engine, if_exists='append', index=False)
@@ -835,7 +858,7 @@ def main(scenario_name):
                     logger.info(f"Excel file created: {excel_file}")
                     
                     # Load Excel to database
-                    load_excel_to_db(excel_file, engine, country_code, horizon)
+                    load_excel_to_db(excel_file, engine, country_code, horizon, version)
                     logger.info(f"Data loaded to database for {country_code}")
                     
                 except Exception as e:
@@ -862,6 +885,7 @@ if __name__ == "__main__":
 
     country_code = config["database_fill"]["countries"]
     horizon = snakemake.params.planning_horizon[0]  # horizon for historical data
+    version = config["database_fill"]["version"]
 
     # scenario name
     scenario_name = f"{country_code}_{horizon}"
