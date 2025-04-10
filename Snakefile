@@ -112,3 +112,23 @@ rule fill_grid_data:
         mem_mb=8000,
     script:
         "scripts/netcdf_power_grid_to_postgis.py"
+
+
+rule fill_statistics:
+    params:
+        countries=config["database_fill"]["countries"],
+        planning_horizon=config["validation"]["planning_horizon"],
+    output:
+        excel=RESULTS_DIR + "validation_results/validation_{countries}.xlsx",
+    resources:
+        mem_mb=8000,
+    script:
+        "scripts/show_statistics.py"
+
+
+rule fill_statistics_all:
+    input:
+        expand(RESULTS_DIR + "validation_results/"
+            + "validation_{countries}.xlsx",
+            **config["database_fill"],
+        ),
