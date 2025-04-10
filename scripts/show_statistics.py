@@ -1,44 +1,6 @@
 """
-PyPSA Model Validation and Statistics Script
-------------------------------------------
-
-This script performs validation of PyPSA power system models by comparing their outputs
-with historical data from EIA and Ember. It calculates and stores various metrics
-including demand, capacity, generation, and network statistics.
-
-The script:
-1. Processes NetCDF files containing PyPSA network models
-2. Extracts key metrics from the models
-3. Compares them with historical data from EIA and Ember
-4. Stores the results in a PostgreSQL database
-5. Generates Excel reports for visualization
-
-Key Metrics Validated:
-- Electricity Demand (TWh)
-- Installed Capacities (GW)
-- Generation Mix (TWh)
-- Network Infrastructure (km)
-
-Data Sources:
-- PyPSA Model Outputs (NetCDF files)
-- EIA Historical Data
-- Ember Historical Data
-
-Requirements:
-- Python 3.8+
-- Required packages: pypsa, pandas, numpy, sqlalchemy, pycountry
-- PostgreSQL database with PostGIS extension
-
-Usage:
-1. Configure database parameters in main()
-2. Set paths to NetCDF files and historical data
-3. Run the script
-
-Example:
-    python show_statistics.py
-
-Note: Each NetCDF file should follow the naming convention: 'XX_YYYY.nc'
-where XX is the country code and YYYY is the year.
+Optimized script to create and populate energy comparison validation tables in PostgreSQL.
+Adapted from validation.py
 """
 
 import os
@@ -52,37 +14,14 @@ from sqlalchemy import create_engine, text
 import warnings
 warnings.filterwarnings("ignore")
 
+# Helper functions from validation.py
 def get_total_demand(n):
-    """
-    Calculate total electricity demand in TWh from PyPSA network.
-    
-    Parameters:
-    -----------
-    n : pypsa.Network
-        PyPSA network object
-        
-    Returns:
-    --------
-    float
-        Total electricity demand in TWh
-    """
+    """Calculate total electricity demand in TWh."""
     demand = n.loads_t.p_set.multiply(n.snapshot_weightings.objective, axis=0).sum().sum() / 1e6
     return demand.round(4)
 
 def get_installed_capacities(n):
-    """
-    Get installed generation capacities in GW from PyPSA network.
-    
-    Parameters:
-    -----------
-    n : pypsa.Network
-        PyPSA network object
-        
-    Returns:
-    --------
-    pd.Series
-        Installed capacities by carrier in GW
-    """
+    """Get installed generation capacities in GW."""
     gen_capacities = n.generators.groupby("carrier").p_nom.sum()
     storage_capacities = n.storage_units.groupby("carrier").p_nom.sum()
     
@@ -94,56 +33,20 @@ def get_installed_capacities(n):
     return capacities
 
 def get_generation_mix(n):
-    """
-    Get generation mix in TWh from PyPSA network.
-    
-    Parameters:
-    -----------
-    n : pypsa.Network
-        PyPSA network object
-        
-    Returns:
-    --------
-    pd.Series
-        Generation by carrier in TWh
-    """
+    """Get generation mix in TWh."""
     gen_generation = n.generators_t.p.multiply(n.snapshot_weightings.objective, axis=0).groupby(n.generators.carrier, axis=1).sum().sum()
     storage_generation = n.storage_units_t.p.multiply(n.snapshot_weightings.objective, axis=0).groupby(n.storage_units.carrier, axis=1).sum().sum()
     generation_mix = pd.concat([gen_generation, storage_generation], axis=0) / 1e6
     return generation_mix.round(4)
 
 def get_network_length(n):
-    """
-    Get network length and voltage ratings from PyPSA network.
-    
-    Parameters:
-    -----------
-    n : pypsa.Network
-        PyPSA network object
-        
-    Returns:
-    --------
-    tuple
-        (total length in km, list of voltage ratings)
-    """
+    """Get network length and voltages."""
     length = float(n.lines.length.sum())
     voltage_ratings = [float(v) for v in n.lines.v_nom.astype(float).sort_values().unique()]
     return length, voltage_ratings
 
 def real_network_length(country_code):
-    """
-    Get real network length and voltage ratings from reference data.
-    
-    Parameters:
-    -----------
-    country_code : str
-        Two-letter country code
-        
-    Returns:
-    --------
-    tuple
-        (total length in km, list of voltage ratings)
-    """
+    """Get real network length and voltages."""
     line_length = {
         "AU":56192.0, "BR":179297.0, "CN":1604838.0, "CO":29169.0, 
         "DE":35796.0, "IN":706348.0, "IT":75246.0, "MX":109747.0, 
@@ -165,23 +68,7 @@ def real_network_length(country_code):
     return line_length.get(country_code, 0.0), voltage_ratings.get(country_code, [])
 
 def standardize_carrier_data(pypsa_data, eia_data, ember_data):
-    """
-    Standardize carrier names across different data sources.
-    
-    Parameters:
-    -----------
-    pypsa_data : pd.Series
-        Data from PyPSA model
-    eia_data : pd.DataFrame
-        Data from EIA
-    ember_data : pd.DataFrame
-        Data from Ember
-        
-    Returns:
-    --------
-    pd.DataFrame
-        Standardized comparison data
-    """
+    """Standardize carriers between different data sources."""
     # Standard carrier mapping
     carrier_mapping = {
         # PyPSA carriers
@@ -266,19 +153,7 @@ def standardize_carrier_data(pypsa_data, eia_data, ember_data):
     return comparison.reset_index()
 
 def get_country_name(country_code):
-    """
-    Get country name and three-letter code from two-letter code.
-    
-    Parameters:
-    -----------
-    country_code : str
-        Two-letter country code
-        
-    Returns:
-    --------
-    tuple
-        (country name, three-letter code)
-    """
+    """Get country name and three-letter code."""
     try:
         country = pycountry.countries.get(alpha_2=country_code)
         return country.name, country.alpha_3 if country else (None, None)
@@ -286,15 +161,44 @@ def get_country_name(country_code):
         print(f"Error getting country info for {country_code}: {e}")
         return None, None
 
+# Historical data retrieval functions
+def get_eia_historic_demand(country_code, horizon, data_dir):
+    """Get historical demand from EIA."""
+    try:
+        eia_data = pd.read_csv(os.path.join(data_dir, "EIA_demands.csv"))
+        eia_data = eia_data.rename(columns={"Unnamed: 1": "country"})
+        eia_data["country"] = eia_data["country"].str.strip()
+        
+        country_name, _ = get_country_name(country_code)
+        
+        if country_name:
+            demand = float(eia_data[eia_data['country'].str.contains(country_name, case=False, na=False)][str(horizon)].iloc[0])
+            return demand
+        return 0.0
+    except Exception as e:
+        print(f"Error getting EIA demand for {country_code}: {e}")
+        return 0.0
+
+def get_ember_historic_demand(country_code, horizon, data_dir):
+    """Get historical demand from Ember."""
+    try:
+        data = pd.read_csv(os.path.join(data_dir, "ember_yearly_full_release_long_format.csv"))
+        _, country_code3 = get_country_name(country_code)
+        
+        demand = data[
+            (data["Year"] == horizon) &
+            (data["Country code"] == country_code3) &
+            (data["Category"] == "Electricity demand") &
+            (data["Subcategory"] == "Demand")
+        ]["Value"]
+        
+        return float(demand.iloc[0]) if len(demand) > 0 else 0.0
+    except Exception as e:
+        print(f"Error getting Ember demand for {country_code}: {e}")
+        return 0.0
+
 def setup_logging():
-    """
-    Set up logging configuration.
-    
-    Returns:
-    --------
-    logging.Logger
-        Configured logger instance
-    """
+    """Set up logging configuration."""
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(levelname)s - %(message)s',
@@ -306,14 +210,7 @@ def setup_logging():
     return logging.getLogger(__name__)
 
 def create_validation_tables(engine):
-    """
-    Create validation tables in the database.
-    
-    Parameters:
-    -----------
-    engine : sqlalchemy.engine.Engine
-        Database connection engine
-    """
+    """Create validation tables in the database."""
     table_definitions = {
         'demand_comparison': """
             CREATE TABLE IF NOT EXISTS demand_comparison (
@@ -376,216 +273,129 @@ def create_validation_tables(engine):
             conn.execute(text(create_statement))
             conn.commit()
 
-def get_eia_historic_demand(country_code, horizon, data_dir):
-    """
-    Get historical demand from EIA.
-    
-    Parameters:
-    -----------
-    country_code : str
-        Two-letter country code
-    horizon : int
-        Year of data
-    data_dir : str
-        Directory containing EIA data
-        
-    Returns:
-    --------
-    float
-        Historical demand in TWh
-    """
-    try:
-        eia_data = pd.read_csv(os.path.join(data_dir, "EIA_demands.csv"))
-        eia_data = eia_data.rename(columns={"Unnamed: 1": "country"})
-        eia_data["country"] = eia_data["country"].str.strip()
-        
-        country_name, _ = get_country_name(country_code)
-        
-        if country_name:
-            demand = float(eia_data[eia_data['country'].str.contains(country_name, case=False, na=False)][str(horizon)].iloc[0])
-            return demand
-        return 0.0
-    except Exception as e:
-        print(f"Error getting EIA demand for {country_code}: {e}")
-        return 0.0
-
 def get_eia_historic_capacities(country_code, horizon, data_dir):
-    """
-    Get historical capacities from EIA.
-    
-    Parameters:
-    -----------
-    country_code : str
-        Two-letter country code
-    horizon : int
-        Year of data
-    data_dir : str
-        Directory containing EIA data
-        
-    Returns:
-    --------
-    pd.DataFrame
-        Historical capacities from EIA
-    """
+    """Get historical capacities from EIA in GW."""
     try:
+        # Load EIA data
         eia_data = pd.read_csv(os.path.join(data_dir, "EIA_installed_capacities.csv"))
         eia_data = eia_data.rename(columns={"Unnamed: 1": "country"})
         eia_data["country"] = eia_data["country"].str.strip()
         
+        # Get country info
         country_name, _ = get_country_name(country_code)
         
+        # Find country data
         if country_name:
-            capacities = eia_data[eia_data['country'].str.contains(country_name, case=False, na=False)]
+            country_index = eia_data[eia_data['country'].str.contains(country_name, case=False, na=False)].index[0]
+            capacities = eia_data.iloc[country_index+1:country_index+14][["country", str(horizon)]]
             return capacities
-        return pd.DataFrame()
+        return None
+        
     except Exception as e:
         print(f"Error getting EIA capacities for {country_code}: {e}")
-        return pd.DataFrame()
+        return None
 
 def get_eia_historic_generation(country_code, horizon, data_dir):
-    """
-    Get historical generation from EIA.
-    
-    Parameters:
-    -----------
-    country_code : str
-        Two-letter country code
-    horizon : int
-        Year of data
-    data_dir : str
-        Directory containing EIA data
-        
-    Returns:
-    --------
-    pd.DataFrame
-        Historical generation from EIA
-    """
+    """Get electricity generation in TWh from EIA."""
     try:
+        # Load EIA data
         eia_data = pd.read_csv(os.path.join(data_dir, "EIA_electricity_generation.csv"))
-        eia_data = eia_data.rename(columns={"Unnamed: 1": "country"})
+        eia_data.rename(columns={"Unnamed: 1":"country"}, inplace=True)
         eia_data["country"] = eia_data["country"].str.strip()
         
+        # Get country name and three-letter code
         country_name, _ = get_country_name(country_code)
         
-        if country_name:
-            generation = eia_data[eia_data['country'].str.contains(country_name, case=False, na=False)]
+        # Find generation values for given country
+        if country_name and country_name in eia_data.country.unique():
+            country_index = eia_data.query("country == @country_name").index[0]
+            generation = eia_data.iloc[country_index+1:country_index+18][["country", str(horizon)]]
             return generation
-        return pd.DataFrame()
+        return None
+        
     except Exception as e:
         print(f"Error getting EIA generation for {country_code}: {e}")
-        return pd.DataFrame()
-
-def get_ember_historic_demand(country_code, horizon, data_dir):
-    """
-    Get historical demand from Ember.
-    
-    Parameters:
-    -----------
-    country_code : str
-        Two-letter country code
-    horizon : int
-        Year of data
-    data_dir : str
-        Directory containing Ember data
-        
-    Returns:
-    --------
-    float
-        Historical demand in TWh
-    """
-    try:
-        data = pd.read_csv(os.path.join(data_dir, "ember_yearly_full_release_long_format.csv"))
-        _, country_code3 = get_country_name(country_code)
-        
-        demand = data[
-            (data["Year"] == horizon) &
-            (data["Country code"] == country_code3) &
-            (data["Category"] == "Electricity demand") &
-            (data["Subcategory"] == "Demand")
-        ]["Value"]
-        
-        return float(demand.iloc[0]) if len(demand) > 0 else 0.0
-    except Exception as e:
-        print(f"Error getting Ember demand for {country_code}: {e}")
-        return 0.0
+        return None
 
 def get_ember_historic_capacities(country_code, horizon, data_dir):
-    """
-    Get historical capacities from Ember.
-    
-    Parameters:
-    -----------
-    country_code : str
-        Two-letter country code
-    horizon : int
-        Year of data
-    data_dir : str
-        Directory containing Ember data
-        
-    Returns:
-    --------
-    pd.DataFrame
-        Historical capacities from Ember
-    """
+    """Get historical capacities from Ember in GW."""
     try:
+        # Load Ember data
         data = pd.read_csv(os.path.join(data_dir, "ember_yearly_full_release_long_format.csv"))
         _, country_code3 = get_country_name(country_code)
         
-        capacities = data[
-            (data["Year"] == horizon) &
+        capacity_ember = data[
             (data["Country code"] == country_code3) &
+            (data["Year"] == horizon) &
             (data["Category"] == "Capacity") &
             (data["Subcategory"] == "Fuel")
         ][["Variable", "Value"]]
         
-        return capacities
+        # Convert to DataFrame with correct index
+        capacity_ember = capacity_ember.set_index("Variable")
+        
+        # Specific mapping for Ember
+        ember_mapping = {
+            "Gas": "Fossil fuels",
+            "Coal": "Fossil fuels",
+            "Other Fossil": "Fossil fuels",
+            "Bioenergy": "Biomass",
+            "Hydro": "Hydro",
+            "Nuclear": "Nuclear",
+            "Solar": "Solar",
+            "Wind": "Wind"
+        }
+        
+        # Apply mapping and sum values for grouped carriers
+        capacity_ember.index = capacity_ember.index.map(lambda x: ember_mapping.get(x, x))
+        capacity_ember = capacity_ember.groupby(capacity_ember.index).sum()
+        
+        # Ensure we have all required carriers
+        required_carriers = ["Nuclear", "Fossil fuels", "Hydro", "PHS", "Solar", 
+                           "Wind", "Biomass", "Geothermal", "Total capacity"]
+        for carrier in required_carriers:
+            if carrier not in capacity_ember.index:
+                capacity_ember.loc[carrier] = 0.0
+                
+        # Calculate total
+        capacity_ember.loc["Total capacity"] = capacity_ember.drop("Total capacity", errors='ignore').sum()
+        
+        return capacity_ember
+        
     except Exception as e:
         print(f"Error getting Ember capacities for {country_code}: {e}")
-        return pd.DataFrame()
+        return None
 
 def get_ember_historic_generation(country_code, horizon, data_dir):
-    """
-    Get historical generation from Ember.
-    
-    Parameters:
-    -----------
-    country_code : str
-        Two-letter country code
-    horizon : int
-        Year of data
-    data_dir : str
-        Directory containing Ember data
-        
-    Returns:
-    --------
-    pd.DataFrame
-        Historical generation from Ember
-    """
+    """Get historical generation from Ember in TWh."""
     try:
+        # Load Ember data
         data = pd.read_csv(os.path.join(data_dir, "ember_yearly_full_release_long_format.csv"))
         _, country_code3 = get_country_name(country_code)
         
-        generation = data[
-            (data["Year"] == horizon) &
+        generation_ember = data[
             (data["Country code"] == country_code3) &
+            (data["Year"] == horizon) &
             (data["Category"] == "Electricity generation") &
-            (data["Subcategory"] == "Fuel")
-        ][["Variable", "Value"]]
+            (data["Subcategory"] == "Fuel") &
+            (data["Unit"] == "TWh")
+        ][["Variable", "Value"]].set_index("Variable")
         
-        return generation
+        # Standardize fuel types
+        generation_ember = generation_ember.replace({
+            "Gas": "Natural gas",
+            "Bioenergy": "Biomass",
+            "Other Fossil": "Oil"
+        })
+        
+        return generation_ember
+        
     except Exception as e:
         print(f"Error getting Ember generation for {country_code}: {e}")
-        return pd.DataFrame()
+        return None
 
 def clean_database(engine):
-    """
-    Clean and recreate validation tables in the database.
-    
-    Parameters:
-    -----------
-    engine : sqlalchemy.engine.Engine
-        Database connection engine
-    """
+    """Clean and create comparison tables in the database."""
     print("Starting database cleanup...")
     
     table_definitions = {
@@ -683,23 +493,7 @@ def clean_database(engine):
         raise
 
 def compare_demands(network_demand, eia_historic_demand, ember_historic_demand):
-    """
-    Compare demands between PyPSA model and historical data.
-    
-    Parameters:
-    -----------
-    network_demand : float
-        Demand from PyPSA model
-    eia_historic_demand : float
-        Historical demand from EIA
-    ember_historic_demand : float
-        Historical demand from Ember
-        
-    Returns:
-    --------
-    pd.DataFrame
-        Comparison of demands with error percentages
-    """
+    """Compare demands between PyPSA model and historical data."""
     demand = pd.DataFrame(columns=["PyPSA Model", "EIA", "Ember"])
     demand.loc["Electricity Demand [TWh]", ["PyPSA Model", "EIA", "Ember"]] = [
         network_demand, 
@@ -711,23 +505,7 @@ def compare_demands(network_demand, eia_historic_demand, ember_historic_demand):
     return demand.round(2)
 
 def compare_capacities(network_capacities, eia_historic_capacities, ember_historic_capacities):
-    """
-    Compare installed capacities between PyPSA model and historical data.
-    
-    Parameters:
-    -----------
-    network_capacities : pd.Series
-        Capacities from PyPSA model
-    eia_historic_capacities : pd.DataFrame
-        Historical capacities from EIA
-    ember_historic_capacities : pd.DataFrame
-        Historical capacities from Ember
-        
-    Returns:
-    --------
-    pd.DataFrame
-        Comparison of capacities with error percentages
-    """
+    """Compare capacities between PyPSA model and historical data."""
     # Process EIA data
     if isinstance(eia_historic_capacities, pd.DataFrame):
         eia_historic_capacities["country"] = eia_historic_capacities.country.str.replace("(million kW)","").str.strip()
@@ -773,23 +551,7 @@ def compare_capacities(network_capacities, eia_historic_capacities, ember_histor
     return capacities
 
 def compare_generation(network_generation, eia_historic_generation, ember_historic_generation):
-    """
-    Compare generation mix between PyPSA model and historical data.
-    
-    Parameters:
-    -----------
-    network_generation : pd.Series
-        Generation from PyPSA model
-    eia_historic_generation : pd.DataFrame
-        Historical generation from EIA
-    ember_historic_generation : pd.DataFrame
-        Historical generation from Ember
-        
-    Returns:
-    --------
-    pd.DataFrame
-        Comparison of generation with error percentages
-    """
+    """Compare generation between PyPSA model and historical data."""
     # Process EIA data
     if isinstance(eia_historic_generation, pd.DataFrame):
         eia_historic_generation["country"] = eia_historic_generation.country.str.replace("(billion kWh)","").str.strip()
@@ -874,25 +636,7 @@ def compare_generation(network_generation, eia_historic_generation, ember_histor
     return generation
   
 def compare_network_lines(network_length, network_voltages, real_length, real_voltages):
-    """
-    Compare network lines between PyPSA model and real data.
-    
-    Parameters:
-    -----------
-    network_length : float
-        Total length from PyPSA model
-    network_voltages : list
-        Voltage ratings from PyPSA model
-    real_length : float
-        Real total length
-    real_voltages : list
-        Real voltage ratings
-        
-    Returns:
-    --------
-    pd.DataFrame
-        Comparison of network lines with error percentages
-    """
+    """Compare network lines between PyPSA model and real data."""
     voltage_ratings = sorted(list(set(network_voltages) | set(real_voltages)))
     df_network = pd.DataFrame(index=["Line length [km]"]+voltage_ratings)
     df_network.loc["Line length [km]", ["PyPSA Model", "Cited Sources"]] = [network_length, real_length]
@@ -902,27 +646,7 @@ def compare_network_lines(network_length, network_voltages, real_length, real_vo
     return df_network
   
 def process_and_save_to_excel(n, country_code, horizon, data_dir, output_dir):
-    """
-    Process data and save to Excel.
-    
-    Parameters:
-    -----------
-    n : pypsa.Network
-        PyPSA network object
-    country_code : str
-        Two-letter country code
-    horizon : int
-        Year of data
-    data_dir : str
-        Directory containing historical data
-    output_dir : str
-        Directory to save Excel files
-        
-    Returns:
-    --------
-    str
-        Path to created Excel file
-    """
+    """Process data and save to Excel as done in validation.py."""
     try:
         # Create output directory if it doesn't exist
         os.makedirs(output_dir, exist_ok=True)
@@ -971,20 +695,7 @@ def process_and_save_to_excel(n, country_code, horizon, data_dir, output_dir):
         raise
 
 def load_excel_to_db(excel_file, engine, country_code, horizon):
-    """
-    Load Excel data into database.
-    
-    Parameters:
-    -----------
-    excel_file : str
-        Path to Excel file
-    engine : sqlalchemy.engine.Engine
-        Database connection engine
-    country_code : str
-        Two-letter country code
-    horizon : int
-        Year of data
-    """
+    """Load Excel data into database."""
     try:
         # Read data from Excel
         df = pd.read_excel(excel_file, sheet_name=country_code)
@@ -1076,9 +787,7 @@ def load_excel_to_db(excel_file, engine, country_code, horizon):
         raise
 
 def main():
-    """
-    Main function to run the validation process.
-    """
+    """Main execution function."""
     logger = setup_logging()
     
     # Database configuration
@@ -1089,6 +798,7 @@ def main():
         'host': '34.68.214.20',
         'port': '5432'
     }
+    
     
     try:
         # Create connection
