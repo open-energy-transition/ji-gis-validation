@@ -96,3 +96,11 @@ The list of grid related tables:
 |`loads`                    |Provides information about electricity loads|
 |`storage_units`            |Provides information about storage units (e.g. hydro and PHS)|
 |`stores`                   |Provides information about stores (e.g. battery and H2 stores)|
+
+The list of tables related to validation results shown in `Show Statistics` tab:
+|Table name                 |Description                                        |
+|---------------------------|---------------------------------------------------|
+|`demand_comparison`        |Provides electricity demand comparison between PyPSA-Earth results, Ember, and EIA data|
+|`capacity_comparison`      |Provides installed capacity comparison between PyPSA-Earth results, Ember, and EIA data|
+|`generation_comparison`    |Provides generation mix comparison between PyPSA-Earth results, Ember, and EIA data|
+|`network_comparison`       |Provides grid line comparison between PyPSA-Earth results, Ember, and EIA data|
