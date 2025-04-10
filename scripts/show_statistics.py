@@ -10,9 +10,14 @@ import pandas as pd
 import pycountry
 import logging
 import numpy as np
+import json
+import glob
 from sqlalchemy import create_engine, text
 import warnings
 warnings.filterwarnings("ignore")
+from _helpers import mock_snakemake, update_config_from_wildcards, \
+                     PYPSA_RESULTS_DIR, DATA_DIR
+
 
 # Helper functions from validation.py
 def get_total_demand(n):
@@ -645,13 +650,9 @@ def compare_network_lines(network_length, network_voltages, real_length, real_vo
     df_network.loc[real_voltages, "Cited Sources"] = "+"
     return df_network
   
-def process_and_save_to_excel(n, country_code, horizon, data_dir, output_dir):
+def process_and_save_to_excel(n, country_code, horizon, data_dir, output_file):
     """Process data and save to Excel as done in validation.py."""
     try:
-        # Create output directory if it doesn't exist
-        os.makedirs(output_dir, exist_ok=True)
-        output_file = os.path.join(output_dir, f"{country_code}_{horizon}_validation.xlsx")
-        
         # Get all necessary data
         demand = get_total_demand(n)
         generation_capacities = get_installed_capacities(n)
@@ -671,7 +672,7 @@ def process_and_save_to_excel(n, country_code, horizon, data_dir, output_dir):
         real_length, real_voltages = real_network_length(country_code)
         
         # Perform comparisons using validation.py functions
-        with pd.ExcelWriter(output_file, engine='xlsxwriter') as writer:
+        with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
             # Compare demand
             demand_comparison = compare_demands(demand, eia_historic_demand, ember_historic_demand)
             demand_comparison.to_excel(writer, sheet_name=country_code, startrow=0, startcol=0)
@@ -786,18 +787,16 @@ def load_excel_to_db(excel_file, engine, country_code, horizon):
         print(f"Error loading Excel to database for {country_code}: {e}")
         raise
 
-def main():
+def main(scenario_name):
     """Main execution function."""
     logger = setup_logging()
     
-    # Database configuration
-    db_params = {
-        'dbname': 'pypsa_earth_db',
-        'user': 'postgres',
-        'password': 'oetpostgres',
-        'host': '34.68.214.20',
-        'port': '5432'
-    }
+    # Get POST_TABLE as a JSON string
+    post_table_json = os.getenv('POST_TABLE')
+    if not post_table_json:
+        raise ValueError("POST_TABLE is not set in `.env` file.")
+    # Configure your database connection here
+    db_params = json.loads(post_table_json)
     
     
     try:
@@ -808,38 +807,31 @@ def main():
         
         # Clean and create tables
         logger.info("Cleaning and creating tables...")
-        clean_database(engine)
+        #clean_database(engine)
         
         # Paths to directories
-        networks_dir = r"D:\Work\OET\Dashboard\Yerbol code\NetCDF_2021"
-        data_dir = r"D:\Work\OET\Dashboard\Yerbol code\ji-gis-validation\data"
-        output_dir = r"D:\Work\OET\Dashboard\Yerbol code\validation_results"
+        network_dir = PYPSA_RESULTS_DIR + f"/{scenario_name}/networks"
         
-        logger.info(f"Processing networks from: {networks_dir}")
-        logger.info(f"Using data from: {data_dir}")
-        logger.info(f"Saving results to: {output_dir}")
+        logger.info(f"Processing networks from: {network_dir}")
+        logger.info(f"Using data from: {DATA_DIR}")
+        logger.info(f"Saving results to: {snakemake.output.excel}")
         
         # Verify directories exist
-        if not os.path.exists(networks_dir):
-            raise FileNotFoundError(f"Networks directory not found: {networks_dir}")
-        if not os.path.exists(data_dir):
-            raise FileNotFoundError(f"Data directory not found: {data_dir}")
+        if not os.path.exists(network_dir):
+            raise FileNotFoundError(f"Networks directory not found: {network_dir}")
+        if not os.path.exists(DATA_DIR):
+            raise FileNotFoundError(f"Data directory not found: {DATA_DIR}")
             
-        for file in os.listdir(networks_dir):
+        for file in os.listdir(network_dir):
             if file.endswith('.nc'):
-                country_code = file.split('_')[0]
-                horizon = int(file.split('_')[1].replace('.nc', ''))
-                
-                logger.info(f"Processing {country_code} for {horizon}")
-                
                 try:
                     # Load network
-                    network_path = os.path.join(networks_dir, file)
-                    logger.info(f"Loading network from: {network_path}")
+                    network_path = os.path.join(network_dir, file)
+                    logger.info(f"Loading network from: {network_path} for scenario {scenario_name}")
                     n = pypsa.Network(network_path)
                     
                     # Process and save to Excel
-                    excel_file = process_and_save_to_excel(n, country_code, horizon, data_dir, output_dir)
+                    excel_file = process_and_save_to_excel(n, country_code, horizon, DATA_DIR, snakemake.output.excel)
                     logger.info(f"Excel file created: {excel_file}")
                     
                     # Load Excel to database
@@ -858,5 +850,20 @@ def main():
         logger.exception("Stack trace:")
         sys.exit(1)
 
+
 if __name__ == "__main__":
-    main() 
+    if "snakemake" not in globals():
+        snakemake = mock_snakemake(
+            "fill_statistics",
+            countries="AU",
+        )
+    # update config based on wildcards
+    config = update_config_from_wildcards(snakemake.config, snakemake.wildcards)
+
+    country_code = config["database_fill"]["countries"]
+    horizon = snakemake.params.planning_horizon[0]  # horizon for historical data
+
+    # scenario name
+    scenario_name = f"{country_code}_{horizon}"
+
+    main(scenario_name)
