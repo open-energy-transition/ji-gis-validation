@@ -6,3 +6,5 @@ scripts/__pycache__
 gurobi.log
 .env
 scripts/.ipynb_checkpoints
+scripts/validation_process.log
+validation_process.log
