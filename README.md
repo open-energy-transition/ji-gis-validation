@@ -60,6 +60,10 @@ After filling the main data, it is necessary to estimate cross-horizon informati
 ``` bash
 snakemake -call fill_investment_co2_all
 ```
+To show the validation results in the `Show Statistics` tab of the app, it is necessary to do validation and upload the comparison data to the database. To fill statistics data, run `fill_statistics_all` rule:
+``` bash
+snakemake -call fill_statistics_all
+```
 Finally, GIS related grid data (e.g. buses, lines, and etc) needs to be uploaded to database. To upload grid data, run:
 ```bash
 snakemake -call fill_grid_data
