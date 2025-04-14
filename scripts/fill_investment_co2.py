@@ -64,10 +64,10 @@ if __name__ == "__main__":
             # record to df
             df.loc[horizon, param] = value
 
-    # calculate investments per co2 reduced in EUR/tCO2_eq
+    # calculate investments per co2 reduced in EUR/tCO2_eq (investments in billion EURs, co2 in tCO2_eq)
     delta_co2 = df.loc[2021, "co2_emissions"] - df.loc[2050, "co2_emissions"]
     delta_investment = df.loc[2050, "investment"] - df.loc[2021, "investment"]
-    investment_per_co2_reduced = (delta_investment / delta_co2) * 1e6
+    investment_per_co2_reduced = (delta_investment / delta_co2) * 1e9
 
     # calculate investment needed
     investments.fillna(0, inplace=True)
