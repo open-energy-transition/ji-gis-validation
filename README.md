@@ -60,6 +60,10 @@ After filling the main data, it is necessary to estimate cross-horizon informati
 ``` bash
 snakemake -call fill_investment_co2_all
 ```
+To show the validation results in the `Show Statistics` tab of the app, it is necessary to do validation and upload the comparison data to the database. To fill statistics data, run `fill_statistics_all` rule:
+``` bash
+snakemake -call fill_statistics_all
+```
 Finally, GIS related grid data (e.g. buses, lines, and etc) needs to be uploaded to database. To upload grid data, run:
 ```bash
 snakemake -call fill_grid_data
@@ -92,3 +96,11 @@ The list of grid related tables:
 |`loads`                    |Provides information about electricity loads|
 |`storage_units`            |Provides information about storage units (e.g. hydro and PHS)|
 |`stores`                   |Provides information about stores (e.g. battery and H2 stores)|
+
+The list of tables related to validation results shown in `Show Statistics` tab:
+|Table name                 |Description                                        |
+|---------------------------|---------------------------------------------------|
+|`demand_comparison`        |Provides electricity demand comparison between PyPSA-Earth results, Ember, and EIA data|
+|`capacity_comparison`      |Provides installed capacity comparison between PyPSA-Earth results, Ember, and EIA data|
+|`generation_comparison`    |Provides generation mix comparison between PyPSA-Earth results, Ember, and EIA data|
+|`network_comparison`       |Provides grid line comparison between PyPSA-Earth results, Ember, and EIA data|
