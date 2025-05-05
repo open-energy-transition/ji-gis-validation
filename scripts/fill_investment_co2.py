@@ -64,10 +64,8 @@ if __name__ == "__main__":
             # record to df
             df.loc[horizon, param] = value
 
-    # calculate investments per co2 reduced in EUR/tCO2_eq (investments in billion EURs, co2 in tCO2_eq)
+    # calculate delta co2 emissions in tCO2_eq
     delta_co2 = df.loc[2021, "co2_emissions"] - df.loc[2050, "co2_emissions"]
-    delta_investment = df.loc[2050, "investment"] - df.loc[2021, "investment"]
-    investment_per_co2_reduced = (delta_investment / delta_co2) * 1e9
 
     # calculate investment needed
     investments.fillna(0, inplace=True)
@@ -78,6 +76,10 @@ if __name__ == "__main__":
     investment_needed["country_code"] = country_code
     investment_needed["horizon"] = 2050
     investment_needed["scenario_id"] = f"{country_code}_2050_{version}"
+
+    # calculate investments per co2 reduced in EUR/tCO2_eq (investments in billion EURs, co2 in tCO2_eq)
+    delta_investment = investment_needed.investment_needed.sum()
+    investment_per_co2_reduced = (delta_investment / delta_co2) * 1e9
 
     # output df (refer to 2050, because investments needed to reach net 0 in 2050)
     df_output = pd.DataFrame(data=[investment_per_co2_reduced], columns=["investment_per_co2_reduced"])
