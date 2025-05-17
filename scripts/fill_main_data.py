@@ -114,8 +114,10 @@ def get_load_shedding_cases(network, threshold=1):
 def get_average_electricity_price(network):
     # get load shedding cases (shedding >= 1 MW)
     load_shed_cases = get_load_shedding_cases(network, threshold=1)
+    # AC buses
+    ac_buses = network.buses.query("carrier == 'AC'").index
     # get electricity load indices
-    load_indices = network.loads.index
+    load_indices = network.loads.query("bus in @ac_buses").index
     # get loads in MWh
     elec_loads = network.loads_t.p_set.multiply(network.snapshot_weightings.objective, axis=0)[load_indices]
     # get total costs in EUR for non load shedding hours
